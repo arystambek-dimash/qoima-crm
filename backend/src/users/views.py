@@ -1,17 +1,22 @@
-from core.views import BaseSerializerMixin
 from django.contrib.auth import get_user_model
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
-from src.users.serializers import LoginViaEmailSerializer
+
+from core.views import BasePermissionMixin, BaseSerializerMixin
+from src.users.serializers import LoginViaEmailSerializer, UserSerializer
 
 
-class UserViewSet(BaseSerializerMixin, viewsets.GenericViewSet):
-    permission_classes = [permissions.AllowAny]
+class UserViewSet(BaseSerializerMixin, BasePermissionMixin, viewsets.GenericViewSet):
+    permission_classes = [permissions.IsAuthenticated]
     serializers = {
-        "login_via_email": LoginViaEmailSerializer
+        "login_via_email": LoginViaEmailSerializer,
+        "profile": UserSerializer,
+    }
+    permissions = {
+        "login_via_email": [permissions.AllowAny],
     }
 
     @action(detail=False, methods=["post"], url_path="login-via-email")
@@ -25,7 +30,7 @@ class UserViewSet(BaseSerializerMixin, viewsets.GenericViewSet):
         ).first()
 
         if db_user is None or not db_user.check_password(
-                serializer.validated_data["password"]
+            serializer.validated_data["password"]
         ):
             raise ValidationError({"detail": "Invalid email or password."})
 
@@ -38,3 +43,8 @@ class UserViewSet(BaseSerializerMixin, viewsets.GenericViewSet):
             },
             status=status.HTTP_200_OK,
         )
+
+    @action(detail=False, methods=["get"], url_path="profile")
+    def profile(self, request):
+        serializer = self.get_serializer(request.user)
+        return Response(serializer.data)

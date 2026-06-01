@@ -7,9 +7,11 @@ from rest_framework_simplejwt.views import (
 from src.users.views import UserViewSet
 
 user_login_via_email = UserViewSet.as_view({"post": "login_via_email"})
+user_profile = UserViewSet.as_view({"get": "profile"})
 
 urlpatterns = [
     path('login-via-email/', user_login_via_email, name='login_via_email'),
-    path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('profile/', user_profile, name='user_profile'),
+    path('login-via-username/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 ]
