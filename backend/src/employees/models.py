@@ -14,3 +14,6 @@ class Employee(models.Model):
     deals_can_create = models.BooleanField(default=False)
     deals_can_delete = models.BooleanField(default=False)
     deals_can_update = models.BooleanField(default=False)
+    employees_can_delete = models.BooleanField(default=False)
+    employees_can_create = models.BooleanField(default=False)
+    employees_can_update = models.BooleanField(default=False)
