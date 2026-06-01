@@ -2,4 +2,4 @@ from django.apps import AppConfig
 
 
 class OnboardsConfig(AppConfig):
-    name = "onboards"
+    name = "src.onboards"
