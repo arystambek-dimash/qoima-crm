@@ -13,7 +13,13 @@ SECRET_KEY = "django-insecure-54$_rl(ogn9*m4q#)dgial7-i3@u+1)67&m%r3z@8&j())$ws1
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [
+    '*'
+]
+
+CORS_ALLOWED_ORIGINS = (
+    'http://localhost:3000',  # for localhost (REACT Default)
+)
 
 # Application definition
 
@@ -31,11 +37,13 @@ INSTALLED_APPS = [
     "src.onboards.apps.OnboardsConfig",
     "src.spendings.apps.SpendingsConfig",
     "drf_spectacular",
-    "rest_framework_simplejwt"
+    "rest_framework_simplejwt",
+    "corsheaders"
 ]
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",

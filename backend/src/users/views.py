@@ -10,20 +10,22 @@ from src.users.serializers import LoginViaEmailSerializer, UserSerializer
 
 
 class UserViewSet(BaseSerializerMixin, BasePermissionMixin, viewsets.GenericViewSet):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.AllowAny]
+    serializer_class = UserSerializer
+
     serializers = {
         "login_via_email": LoginViaEmailSerializer,
         "profile": UserSerializer,
     }
     permissions = {
-        "login_via_email": [permissions.AllowAny],
+        "login_via_email": [permissions.AllowAny,],
+        "profile": [permissions.IsAuthenticated,]
     }
 
     @action(detail=False, methods=["post"], url_path="login-via-email")
     def login_via_email(self, request):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-
         user_model = get_user_model()
         db_user = user_model.objects.filter(
             email=serializer.validated_data["email"]

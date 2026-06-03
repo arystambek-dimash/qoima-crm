@@ -10,6 +10,7 @@ class BaseSerializerMixin:
 
     def get_serializer_class(self) -> rest_serializers.Serializer:
         action = getattr(self, 'action', None)
+
         if action and action in self.serializers:
             return self.serializers[action]
 
