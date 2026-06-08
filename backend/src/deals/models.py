@@ -12,6 +12,7 @@ class Deal(models.Model):
         settings.AUTH_USER_MODEL,
         limit_choices_to={"role": UserRole.COLLABORATOR},
         on_delete=models.CASCADE,
+        null=True
     )
     stage = models.CharField(max_length=120)
     date_start = models.DateField(default=date.today)
