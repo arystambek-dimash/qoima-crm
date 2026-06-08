@@ -79,4 +79,6 @@ class AccountingPermissions(EmployeeFlagPermission):
     permission_map = {
         "list": "accounting_can_retrieve",
         "retrieve": "accounting_can_retrieve",
+        "create": "accounting_can_create",
+        "update": "accounting_can_update",
     }

@@ -11,6 +11,8 @@ class Employee(models.Model):
     tasks_can_delete = models.BooleanField(default=False)
     tasks_can_create = models.BooleanField(default=False)
     accounting_can_retrieve = models.BooleanField(default=False)
+    accounting_can_create = models.BooleanField(default=False)
+    accounting_can_update = models.BooleanField(default=False)
     deals_can_create = models.BooleanField(default=False)
     deals_can_delete = models.BooleanField(default=False)
     deals_can_update = models.BooleanField(default=False)
