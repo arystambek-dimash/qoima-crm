@@ -63,6 +63,10 @@ class DealPermissions(EmployeeFlagPermission):
         "update": "deals_can_update",
         "partial_update": "deals_can_update",
         "destroy": "deals_can_delete",
+        "create_file": "deals_can_update",
+        "create_payment": "deals_can_update",
+        "delete_file": "deals_can_update",
+        "delete_payment": "deals_can_update",
     }
 
 
@@ -79,6 +83,9 @@ class AccountingPermissions(EmployeeFlagPermission):
     permission_map = {
         "list": "accounting_can_retrieve",
         "retrieve": "accounting_can_retrieve",
+        "analytics": "accounting_can_retrieve",
         "create": "accounting_can_create",
         "update": "accounting_can_update",
+        "partial_update": "accounting_can_update",
+        "destroy": "accounting_can_delete",
     }

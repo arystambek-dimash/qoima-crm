@@ -1,21 +1,33 @@
 from django.contrib.auth import get_user_model
-from rest_framework import permissions, status, viewsets
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import mixins, permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from core.views import BasePermissionMixin, BaseSerializerMixin
-from src.users.serializers import LoginViaEmailSerializer, UserSerializer
+from src.users.serializers import LoginViaEmailSerializer, UserCreateSerializer, UserSerializer
 
 
-class UserViewSet(BaseSerializerMixin, BasePermissionMixin, viewsets.GenericViewSet):
-    permission_classes = [permissions.AllowAny]
+class UserViewSet(
+    BaseSerializerMixin,
+    BasePermissionMixin,
+    mixins.ListModelMixin,
+    mixins.CreateModelMixin,
+    viewsets.GenericViewSet,
+):
+    queryset = get_user_model().objects.all()
+    permission_classes = [permissions.IsAuthenticated]
     serializer_class = UserSerializer
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ["role"]
 
     serializers = {
         "login_via_email": LoginViaEmailSerializer,
         "profile": UserSerializer,
+        "list": UserSerializer,
+        "create": UserCreateSerializer,
     }
     permissions = {
         "login_via_email": [permissions.AllowAny,],

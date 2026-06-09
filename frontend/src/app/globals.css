@@ -1,0 +1,351 @@
+@import "tailwindcss";
+
+@theme {
+  /* Notion-like warm light palette (default; values get redeclared at runtime via :root rules below) */
+  --color-canvas: #ffffff;
+  --color-surface: #fbfbfa;
+  --color-surface-2: #f7f6f3;
+  --color-surface-3: #efeeec;
+  --color-hairline: #ececea;
+  --color-hairline-strong: #e2e1de;
+
+  --color-ink: #37352f;
+  --color-ink-2: #4f4d46;
+  --color-ink-3: #787671;
+  --color-ink-4: #9b9a94;
+  --color-ink-5: #c1c0bb;
+
+  --color-accent: #2383e2;
+  --color-accent-soft: #e7f1fb;
+  --color-accent-ink: #1769b8;
+
+  --color-tag-gray-bg: #ebeae7;
+  --color-tag-gray-fg: #6b6862;
+  --color-tag-brown-bg: #efe5db;
+  --color-tag-brown-fg: #785b45;
+  --color-tag-orange-bg: #fbe6d3;
+  --color-tag-orange-fg: #b6651b;
+  --color-tag-yellow-bg: #fbf3c0;
+  --color-tag-yellow-fg: #8a6f1f;
+  --color-tag-green-bg: #dceedd;
+  --color-tag-green-fg: #2f7e3d;
+  --color-tag-blue-bg: #d9ebf8;
+  --color-tag-blue-fg: #1f6db3;
+  --color-tag-purple-bg: #e7dff7;
+  --color-tag-purple-fg: #6a4cb0;
+  --color-tag-pink-bg: #f6dfe9;
+  --color-tag-pink-fg: #ad3a72;
+  --color-tag-red-bg: #fadcd6;
+  --color-tag-red-fg: #b3392a;
+
+  --color-warn: #d49a2a;
+  --color-danger: #d8473a;
+  --color-success: #3d9c47;
+  --color-info: #2383e2;
+
+  /* Single typeface for hierarchy via weight + size — easier to read */
+  --font-display: var(--font-inter);
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-jetbrains-mono);
+
+  --shadow-card: 0 1px 0 0 rgba(15, 15, 15, 0.04),
+    0 1px 3px 0 rgba(15, 15, 15, 0.06);
+  --shadow-pop: 0 12px 32px -8px rgba(15, 15, 15, 0.12),
+    0 4px 12px -2px rgba(15, 15, 15, 0.06);
+
+  --ease-out-quint: cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+/* ------------------------------------------------------------- *
+ * Theme tokens
+ * ------------------------------------------------------------- */
+
+/* LIGHT — explicit & default */
+:root,
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --color-canvas: #ffffff;
+  --color-surface: #fbfbfa;
+  --color-surface-2: #f7f6f3;
+  --color-surface-3: #efeeec;
+  --color-hairline: #ececea;
+  --color-hairline-strong: #e2e1de;
+
+  --color-ink: #37352f;
+  --color-ink-2: #4f4d46;
+  --color-ink-3: #787671;
+  --color-ink-4: #9b9a94;
+  --color-ink-5: #c1c0bb;
+
+  --color-accent: #2383e2;
+  --color-accent-soft: #e7f1fb;
+  --color-accent-ink: #1769b8;
+
+  --color-tag-gray-bg: #ebeae7;
+  --color-tag-gray-fg: #6b6862;
+  --color-tag-brown-bg: #efe5db;
+  --color-tag-brown-fg: #785b45;
+  --color-tag-orange-bg: #fbe6d3;
+  --color-tag-orange-fg: #b6651b;
+  --color-tag-yellow-bg: #fbf3c0;
+  --color-tag-yellow-fg: #8a6f1f;
+  --color-tag-green-bg: #dceedd;
+  --color-tag-green-fg: #2f7e3d;
+  --color-tag-blue-bg: #d9ebf8;
+  --color-tag-blue-fg: #1f6db3;
+  --color-tag-purple-bg: #e7dff7;
+  --color-tag-purple-fg: #6a4cb0;
+  --color-tag-pink-bg: #f6dfe9;
+  --color-tag-pink-fg: #ad3a72;
+  --color-tag-red-bg: #fadcd6;
+  --color-tag-red-fg: #b3392a;
+
+  --shadow-card: 0 1px 0 0 rgba(15, 15, 15, 0.04),
+    0 1px 3px 0 rgba(15, 15, 15, 0.06);
+  --shadow-pop: 0 12px 32px -8px rgba(15, 15, 15, 0.12),
+    0 4px 12px -2px rgba(15, 15, 15, 0.06);
+}
+
+/* DARK — Notion-style warm dark */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --color-canvas: #191919;
+  --color-surface: #202020;
+  --color-surface-2: #252525;
+  --color-surface-3: #2f2f2f;
+  --color-hairline: #2a2a2a;
+  --color-hairline-strong: #373737;
+
+  --color-ink: #e6e3dc;
+  --color-ink-2: #c4c2bc;
+  --color-ink-3: #989590;
+  --color-ink-4: #6f6d68;
+  --color-ink-5: #4a4845;
+
+  --color-accent: #4ea4ee;
+  --color-accent-soft: #1f3551;
+  --color-accent-ink: #8fc0ee;
+
+  --color-tag-gray-bg: #3a3a3a;
+  --color-tag-gray-fg: #b8b6b1;
+  --color-tag-brown-bg: #4a3a31;
+  --color-tag-brown-fg: #d9b89c;
+  --color-tag-orange-bg: #5a3a23;
+  --color-tag-orange-fg: #f0b27a;
+  --color-tag-yellow-bg: #4d4220;
+  --color-tag-yellow-fg: #ecd47a;
+  --color-tag-green-bg: #25402e;
+  --color-tag-green-fg: #8ad199;
+  --color-tag-blue-bg: #1f3551;
+  --color-tag-blue-fg: #8fc0ee;
+  --color-tag-purple-bg: #3a2f55;
+  --color-tag-purple-fg: #b9a4e6;
+  --color-tag-pink-bg: #4d2840;
+  --color-tag-pink-fg: #ea9bc4;
+  --color-tag-red-bg: #4d2820;
+  --color-tag-red-fg: #ee9b8e;
+
+  --shadow-card: 0 1px 0 0 rgba(0, 0, 0, 0.4),
+    0 1px 3px 0 rgba(0, 0, 0, 0.4);
+  --shadow-pop: 0 12px 32px -8px rgba(0, 0, 0, 0.6),
+    0 4px 12px -2px rgba(0, 0, 0, 0.4);
+}
+
+/* SYSTEM — follow OS preference */
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="system"] {
+    color-scheme: dark;
+
+    --color-canvas: #191919;
+    --color-surface: #202020;
+    --color-surface-2: #252525;
+    --color-surface-3: #2f2f2f;
+    --color-hairline: #2a2a2a;
+    --color-hairline-strong: #373737;
+
+    --color-ink: #e6e3dc;
+    --color-ink-2: #c4c2bc;
+    --color-ink-3: #989590;
+    --color-ink-4: #6f6d68;
+    --color-ink-5: #4a4845;
+
+    --color-accent: #4ea4ee;
+    --color-accent-soft: #1f3551;
+    --color-accent-ink: #8fc0ee;
+
+    --color-tag-gray-bg: #3a3a3a;
+    --color-tag-gray-fg: #b8b6b1;
+    --color-tag-brown-bg: #4a3a31;
+    --color-tag-brown-fg: #d9b89c;
+    --color-tag-orange-bg: #5a3a23;
+    --color-tag-orange-fg: #f0b27a;
+    --color-tag-yellow-bg: #4d4220;
+    --color-tag-yellow-fg: #ecd47a;
+    --color-tag-green-bg: #25402e;
+    --color-tag-green-fg: #8ad199;
+    --color-tag-blue-bg: #1f3551;
+    --color-tag-blue-fg: #8fc0ee;
+    --color-tag-purple-bg: #3a2f55;
+    --color-tag-purple-fg: #b9a4e6;
+    --color-tag-pink-bg: #4d2840;
+    --color-tag-pink-fg: #ea9bc4;
+    --color-tag-red-bg: #4d2820;
+    --color-tag-red-fg: #ee9b8e;
+
+    --shadow-card: 0 1px 0 0 rgba(0, 0, 0, 0.4),
+      0 1px 3px 0 rgba(0, 0, 0, 0.4);
+    --shadow-pop: 0 12px 32px -8px rgba(0, 0, 0, 0.6),
+      0 4px 12px -2px rgba(0, 0, 0, 0.4);
+  }
+}
+
+@layer base {
+  html,
+  body {
+    background: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans), -apple-system, BlinkMacSystemFont,
+      "Segoe UI", system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background: var(--color-accent-soft);
+    color: var(--color-accent-ink);
+  }
+
+  *,
+  *::before,
+  *::after {
+    border-color: var(--color-hairline);
+  }
+
+  input,
+  textarea,
+  select,
+  button {
+    font: inherit;
+    color: inherit;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+}
+
+@layer utilities {
+  /* Display utility used on big page titles. Same family as body — just
+     heavier weight and tighter tracking. Optimized for legibility. */
+  .font-display {
+    font-family: var(--font-display), -apple-system, BlinkMacSystemFont,
+      "Segoe UI", system-ui, sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+  }
+
+  .font-mono {
+    font-family: var(--font-mono), ui-monospace, monospace;
+    font-feature-settings: "tnum";
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  /* Scrollbar matched to theme */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-ink-5) transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: var(--color-ink-5);
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: var(--color-ink-4);
+    background-clip: padding-box;
+    border: 2px solid transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  /* Subtle dotted background — adapts to current ink color via opacity */
+  .bg-dots {
+    background-image: radial-gradient(
+      circle at 1px 1px,
+      color-mix(in srgb, var(--color-ink) 8%, transparent) 1px,
+      transparent 0
+    );
+    background-size: 22px 22px;
+  }
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  .anim-rise {
+    animation: rise 0.32s var(--ease-out-quint) both;
+  }
+  .anim-fade {
+    animation: fade 0.24s ease both;
+  }
+
+  .stagger > * {
+    animation: rise 0.32s var(--ease-out-quint) both;
+  }
+  .stagger > *:nth-child(1) {
+    animation-delay: 0.02s;
+  }
+  .stagger > *:nth-child(2) {
+    animation-delay: 0.06s;
+  }
+  .stagger > *:nth-child(3) {
+    animation-delay: 0.1s;
+  }
+  .stagger > *:nth-child(4) {
+    animation-delay: 0.14s;
+  }
+  .stagger > *:nth-child(5) {
+    animation-delay: 0.18s;
+  }
+  .stagger > *:nth-child(6) {
+    animation-delay: 0.22s;
+  }
+  .stagger > *:nth-child(7) {
+    animation-delay: 0.26s;
+  }
+  .stagger > *:nth-child(8) {
+    animation-delay: 0.3s;
+  }
+}
