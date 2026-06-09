@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     "src.onboards.apps.OnboardsConfig",
     "src.spendings.apps.SpendingsConfig",
     "src.incomes.apps.IncomesConfig",
+    "src.telegram_bot.apps.TelegramBotConfig",
     "drf_spectacular",
     "rest_framework_simplejwt",
     "corsheaders"
@@ -138,3 +139,6 @@ SPECTACULAR_SETTINGS = {
     'SERVE_INCLUDE_SCHEMA': False,
     # OTHER SETTINGS
 }
+
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_WEBHOOK_SECRET = os.getenv("TELEGRAM_WEBHOOK_SECRET", "")
