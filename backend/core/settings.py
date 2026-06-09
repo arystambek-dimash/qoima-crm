@@ -36,6 +36,7 @@ INSTALLED_APPS = [
     "src.employees.apps.EmployeesConfig",
     "src.onboards.apps.OnboardsConfig",
     "src.spendings.apps.SpendingsConfig",
+    "src.incomes.apps.IncomesConfig",
     "drf_spectacular",
     "rest_framework_simplejwt",
     "corsheaders"
@@ -125,7 +126,9 @@ REST_FRAMEWORK = {
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
-    )
+    ),
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "PAGE_SIZE": 50,
 }
 
 SPECTACULAR_SETTINGS = {
