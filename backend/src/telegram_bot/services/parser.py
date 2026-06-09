@@ -28,33 +28,55 @@ class CommandParser:
         r"^\s*(?P<amount>\d[\d\s_]*(?:[.,]\d{1,2})?)\s*(?P<tail>.*)$"
     )
     PERIODS = {"week", "month", "year", "all"}
+    PERIOD_ALIASES = {
+        "week": "week",
+        "nedelya": "week",
+        "неделя": "week",
+        "неделю": "week",
+        "апта": "week",
+        "month": "month",
+        "mesyac": "month",
+        "месяц": "month",
+        "ай": "month",
+        "year": "year",
+        "god": "year",
+        "год": "year",
+        "жыл": "year",
+        "all": "all",
+        "vse": "all",
+        "все": "all",
+        "барлығы": "all",
+    }
 
     def parse(self, text: str) -> ParsedCommand:
         raw = text.strip()
 
         if not raw:
-            raise CommandParseError("Empty command.")
+            raise CommandParseError("Пустая команда.")
 
         command, rest = self._split_command(raw)
 
-        if command in {"start", "help"}:
+        if command in {"start", "help", "pomosh"}:
             return ParsedCommand(name="help", raw=raw)
 
-        if command == "whoami":
+        if command in {"whoami", "ktoya"}:
             return ParsedCommand(name="whoami", raw=raw)
 
-        if command in {"income", "spending", "expense", "spend"}:
-            name = "spending" if command in {"expense", "spend"} else command
+        if command in {"income", "in", "dohod"}:
+            return self._parse_money_command("income", raw, rest)
+
+        if command in {"spending", "expense", "spend", "out", "rashod"}:
+            name = "spending"
             return self._parse_money_command(name, raw, rest)
 
-        if command == "report":
+        if command in {"report", "r", "otchet"}:
             return self._parse_report(raw, rest)
 
-        raise CommandParseError(f"Unknown command: /{command}")
+        raise CommandParseError(f"Неизвестная команда: /{command}")
 
     def _split_command(self, raw: str) -> tuple[str, str]:
         if not raw.startswith("/"):
-            raise CommandParseError("Use a slash command, for example /report month.")
+            raise CommandParseError("Команда должна начинаться с /. Например: /otchet month.")
 
         first, _, rest = raw.partition(" ")
         command = first.removeprefix("/").split("@", 1)[0].lower()
@@ -70,7 +92,7 @@ class CommandParser:
 
         if not match:
             raise CommandParseError(
-                f"Use /{command} <amount> <type> [date]."
+                f"Формат: /{command} <сумма> <тип> [дата]."
             )
 
         amount = self._parse_amount(match.group("amount"))
@@ -97,7 +119,7 @@ class CommandParser:
             second_date = self._parse_date(parts[1], today) if len(parts) > 1 else today
 
             if second_date is None:
-                raise CommandParseError("Second report date is invalid.")
+                raise CommandParseError("Вторая дата отчёта указана неверно.")
 
             return ParsedCommand(
                 name="report",
@@ -107,10 +129,12 @@ class CommandParser:
                 date_to=second_date,
             )
 
-        period = parts[0].lower()
+        period = self.PERIOD_ALIASES.get(parts[0].lower(), "")
 
         if period not in self.PERIODS:
-            raise CommandParseError("Use /report week, month, year, all, or two dates.")
+            raise CommandParseError(
+                "Формат отчёта: /otchet week, month, year, all или две даты."
+            )
 
         return ParsedCommand(name="report", raw=raw, period=period)
 
@@ -134,10 +158,10 @@ class CommandParser:
         try:
             amount = Decimal(normalized)
         except InvalidOperation as error:
-            raise CommandParseError("Amount is invalid.") from error
+            raise CommandParseError("Сумма указана неверно.") from error
 
         if amount <= 0:
-            raise CommandParseError("Amount must be greater than zero.")
+            raise CommandParseError("Сумма должна быть больше нуля.")
 
         return amount
 

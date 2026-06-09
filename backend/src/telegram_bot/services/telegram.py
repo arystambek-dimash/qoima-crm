@@ -5,20 +5,34 @@ from django.conf import settings
 
 
 class TelegramClient:
+    def set_webhook(self, webhook_url: str, secret: str = "") -> dict:
+        payload = {"url": webhook_url}
+
+        if secret:
+            payload["secret_token"] = secret
+
+        return self._post("setWebhook", payload)
+
     def send_message(self, chat_id: int, text: str) -> bool:
+        result = self._post(
+            "sendMessage",
+            {
+                "chat_id": chat_id,
+                "text": text,
+                "disable_web_page_preview": True,
+            },
+        )
+        return bool(result.get("ok"))
+
+    def _post(self, method: str, payload: dict) -> dict:
         token = getattr(settings, "TELEGRAM_BOT_TOKEN", "")
 
         if not token:
-            return False
+            return {"ok": False, "description": "TELEGRAM_BOT_TOKEN is not set."}
 
-        payload = {
-            "chat_id": chat_id,
-            "text": text,
-            "disable_web_page_preview": True,
-        }
         data = json.dumps(payload).encode("utf-8")
         req = request.Request(
-            f"https://api.telegram.org/bot{token}/sendMessage",
+            f"https://api.telegram.org/bot{token}/{method}",
             data=data,
             headers={"Content-Type": "application/json"},
             method="POST",
@@ -26,6 +40,7 @@ class TelegramClient:
 
         try:
             with request.urlopen(req, timeout=10) as response:
-                return 200 <= response.status < 300
-        except (error.URLError, TimeoutError):
-            return False
+                body = response.read().decode("utf-8")
+                return json.loads(body)
+        except (error.URLError, TimeoutError) as exc:
+            return {"ok": False, "description": str(exc)}

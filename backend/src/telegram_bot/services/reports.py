@@ -31,15 +31,15 @@ class ReportBuilder:
         net_total = income_total - spending_total
 
         lines = [
-            f"Report: {date_from.isoformat()} - {date_to.isoformat()}",
+            f"Отчёт: {date_from.isoformat()} - {date_to.isoformat()}",
             "",
-            f"Income:   {self._money(income_total)} KZT",
-            f"Spending: {self._money(spending_total)} KZT",
-            f"Net:      {self._money(net_total)} KZT",
+            f"Доходы:  {self._money(income_total)} KZT",
+            f"Расходы: {self._money(spending_total)} KZT",
+            f"Итог:    {self._money(net_total)} KZT",
             "",
         ]
-        lines.extend(self._type_section("Income by type", incomes, "amount"))
-        lines.extend(self._type_section("Spending by type", spendings, "amount"))
+        lines.extend(self._type_section("Доходы по типам", incomes, "amount"))
+        lines.extend(self._type_section("Расходы по типам", spendings, "amount"))
         lines.extend(
             self._finance_timeline(
                 incomes,
@@ -103,13 +103,13 @@ class ReportBuilder:
         )
 
         if not rows:
-            return [title, "No data", ""]
+            return [title, "Нет данных", ""]
 
         max_value = max(row["total"] or ZERO for row in rows)
         lines = [title]
 
         for row in rows:
-            label = row["type"] or "unknown"
+            label = row["type"] or "без типа"
             total = row["total"] or ZERO
             lines.append(
                 f"{label[:14]:14} {self._bar(total, max_value)} "
@@ -138,16 +138,16 @@ class ReportBuilder:
             rows.append((bucket, income_total, spending_total, income_total - spending_total))
 
         if not rows:
-            return ["Finance timeline", "No data", ""]
+            return ["Динамика финансов", "Нет данных", ""]
 
         max_value = max(abs(row[3]) for row in rows) or ZERO
-        lines = ["Finance timeline"]
+        lines = ["Динамика финансов"]
 
         for bucket, income_total, spending_total, net_total in rows:
             label = self._bucket_label(bucket, group_by)
             lines.append(
                 f"{label:10} {self._bar(abs(net_total), max_value)} "
-                f"net {self._money(net_total)} "
+                f"итог {self._money(net_total)} "
                 f"(+{self._money(income_total)} / -{self._money(spending_total)})"
             )
 
@@ -169,21 +169,21 @@ class ReportBuilder:
         }
         by_type = list(tasks.values("type").annotate(**counters).order_by("-total", "type")[:8])
         total_tasks = sum(row["total"] for row in by_type)
-        lines = ["Tasks by type"]
+        lines = ["Задачи по типам"]
 
         if not by_type:
-            lines.extend(["No data", ""])
+            lines.extend(["Нет данных", ""])
         else:
             max_value = max(row["total"] for row in by_type)
 
             for row in by_type:
                 lines.append(
-                    f"{(row['type'] or 'unknown')[:14]:14} "
+                    f"{(row['type'] or 'без типа')[:14]:14} "
                     f"{self._bar(row['total'], max_value)} "
-                    f"{row['total']} total, {row['active']} active, {row['overdue']} overdue"
+                    f"{row['total']} всего, {row['active']} активных, {row['overdue']} просрочено"
                 )
 
-            lines.append(f"Tasks total: {total_tasks}")
+            lines.append(f"Всего задач: {total_tasks}")
             lines.append("")
 
         lines.extend(self._tasks_timeline(tasks, group_by, date_from, date_to))
@@ -200,10 +200,10 @@ class ReportBuilder:
         buckets = self._bucket_list(date_from, date_to, group_by)[-12:]
 
         if not buckets:
-            return ["Tasks by term", "No data", ""]
+            return ["Задачи по срокам", "Нет данных", ""]
 
         max_value = max(rows_by_bucket.get(bucket, 0) for bucket in buckets) or 0
-        lines = ["Tasks by term"]
+        lines = ["Задачи по срокам"]
 
         for bucket in buckets:
             total = rows_by_bucket.get(bucket, 0)

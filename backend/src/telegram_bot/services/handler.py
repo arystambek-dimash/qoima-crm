@@ -170,7 +170,7 @@ class TelegramBotService:
 
     def _require_accounting(self, user, permission_field: str) -> None:
         if not user or not user.is_authenticated:
-            raise PermissionError("Telegram account is not linked to a CRM user.")
+            raise PermissionError("Telegram аккаунт не привязан к пользователю CRM.")
 
         if user.is_staff or user.is_superuser:
             return
@@ -178,17 +178,19 @@ class TelegramBotService:
         try:
             employee = user.employee
         except ObjectDoesNotExist as exc:
-            raise PermissionError("CRM user has no employee permission profile.") from exc
+            raise PermissionError("У пользователя CRM нет профиля сотрудника.") from exc
 
         if not getattr(employee, permission_field, False):
-            raise PermissionError("You do not have permission for this command.")
+            raise PermissionError("У вас нет прав для этой команды.")
 
     def _created_text(self, record_type: str, command) -> str:
+        title = "доход" if record_type == "income" else "расход"
+
         return (
-            f"Created {record_type}.\n"
-            f"Amount: {command.amount} KZT\n"
-            f"Type: {command.label}\n"
-            f"Date: {command.record_date.isoformat()}"
+            f"Готово, создал {title}.\n"
+            f"Сумма: {command.amount} KZT\n"
+            f"Тип: {command.label}\n"
+            f"Дата: {command.record_date.isoformat()}"
         )
 
     def _whoami_text(self, from_data: dict, account: TelegramAccount | None) -> str:
@@ -198,25 +200,36 @@ class TelegramBotService:
         ]
 
         if account:
-            lines.append(f"CRM user: {account.user}")
+            lines.append(f"CRM пользователь: {account.user}")
         else:
-            lines.append("CRM user: not linked")
+            lines.append("CRM пользователь: не привязан")
 
         return "\n".join(lines)
 
     def _not_linked_text(self, from_data: dict) -> str:
         return (
-            "Your Telegram account is not linked to CRM.\n"
-            f"Send this Telegram ID to an admin: {from_data.get('id')}"
+            "Ваш Telegram аккаунт не привязан к CRM.\n"
+            f"Отправьте администратору этот Telegram ID: {from_data.get('id')}\n"
+            "Админ должен создать TelegramAccount в Django admin."
         )
 
     def _help_text(self) -> str:
         return (
-            "Commands:\n"
-            "/income 15000 website [date]\n"
-            "/spending 5000 ads [date]\n"
-            "/report week|month|year|all\n"
-            "/report 2026-06-01 2026-06-09\n"
+            "Команды CRM бота:\n\n"
+            "1. Добавить доход\n"
+            "/income 15000 сайт\n"
+            "/dohod 15000 сайт 2026-06-09\n\n"
+            "2. Добавить расход\n"
+            "/spending 5000 реклама\n"
+            "/rashod 5000 офис вчера\n\n"
+            "3. Получить отчёт\n"
+            "/report week\n"
+            "/otchet month\n"
+            "/otchet 2026-06-01 2026-06-09\n\n"
+            "Периоды: week, month, year, all.\n"
+            "Можно писать: неделя, месяц, год, все.\n"
+            "Даты: сегодня, вчера, YYYY-MM-DD или DD.MM.YYYY.\n\n"
+            "4. Узнать свой Telegram ID\n"
             "/whoami\n\n"
-            "Dates: today, yesterday, YYYY-MM-DD, or DD.MM.YYYY."
+            "Перед работой админ должен привязать ваш Telegram ID к CRM пользователю."
         )
