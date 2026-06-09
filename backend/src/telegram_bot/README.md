@@ -1,69 +1,85 @@
-# Telegram CRM bot
+# Telegram CRM Bot
 
-Бот работает через webhook: Telegram отправляет команды на Django endpoint,
-backend проверяет права CRM пользователя и выполняет действие.
+The bot works through a webhook: Telegram sends commands to the Django endpoint,
+the backend checks the linked CRM user's permissions, then creates records or
+returns analytics.
 
-## Как запустить
+## How To Run
 
-1. Создай бота через BotFather и получи token.
-2. Добавь переменные окружения:
+1. Create a bot with BotFather and copy the bot token.
+2. Add environment variables:
 
 ```bash
 TELEGRAM_BOT_TOKEN=123456:telegram-token
 TELEGRAM_WEBHOOK_SECRET=some-random-secret
 ```
 
-3. Запусти backend и примени миграции:
+3. Run the backend and apply migrations:
 
 ```bash
 poetry run python manage.py migrate
 poetry run python manage.py runserver
 ```
 
-4. Backend должен быть доступен Telegram по публичному HTTPS URL.
-   Для локальной разработки можно открыть backend через ngrok/cloudflared.
+4. Telegram must be able to reach your backend through a public HTTPS URL.
+   For local development, expose the backend with ngrok or cloudflared.
 
-5. Установи webhook:
+5. Register the webhook:
 
 ```bash
 poetry run python manage.py set_telegram_webhook https://your-domain.com/api/telegram/webhook/
 ```
 
-6. В Telegram отправь боту или в группе:
+6. In Telegram, send this command to the bot or to the group:
 
 ```text
 /whoami
 ```
 
-7. Скопируй Telegram ID и в Django admin создай `TelegramAccount`,
-   привязав этот ID к CRM пользователю.
+7. Copy the Telegram ID and create a `TelegramAccount` in Django admin.
+   Link that Telegram ID to the correct CRM user.
 
-## Команды
+## Commands
+
+Add income:
 
 ```text
-/income 15000 сайт
-/dohod 15000 сайт 2026-06-09
+/income 15000 website
+/income 15000 website 2026-06-09
+```
 
-/spending 5000 реклама
-/rashod 5000 офис вчера
+Add spending:
 
+```text
+/spending 5000 ads
+/spending 5000 office yesterday
+```
+
+Get a report:
+
+```text
 /report week
-/otchet month
-/otchet 2026-06-01 2026-06-09
+/report month
+/report year
+/report all
+/report 2026-06-01 2026-06-09
+```
 
+Utility:
+
+```text
 /whoami
 /help
 ```
 
-Периоды для отчёта: `week`, `month`, `year`, `all`.
-Также можно писать: `неделя`, `месяц`, `год`, `все`.
+Supported report periods: `week`, `month`, `year`, `all`.
 
-Даты: `сегодня`, `вчера`, `YYYY-MM-DD`, `DD.MM.YYYY`.
+Supported dates: `today`, `yesterday`, `YYYY-MM-DD`, or `DD.MM.YYYY`.
 
-## Права
+## Permissions
 
-Бот использует CRM permissions:
+The bot uses existing CRM permissions:
 
-- создание доходов/расходов: `accounting_can_create`
-- отчёты: `accounting_can_retrieve`
-- staff/superuser проходят проверку автоматически
+- creating income/spending records: `accounting_can_create`
+- report access: `accounting_can_retrieve`
+- staff and superuser accounts bypass employee flags

@@ -31,10 +31,10 @@ class Command(BaseCommand):
         if not result.get("ok"):
             raise CommandError(result.get("description", "Telegram rejected webhook."))
 
-        self.stdout.write(self.style.SUCCESS("Telegram webhook установлен."))
+        self.stdout.write(self.style.SUCCESS("Telegram webhook has been set."))
         self.stdout.write(f"URL: {options['url']}")
 
         if secret:
-            self.stdout.write("Secret token включён.")
+            self.stdout.write("Secret token is enabled.")
         else:
-            self.stdout.write("Secret token не задан.")
+            self.stdout.write("Secret token is not set.")
