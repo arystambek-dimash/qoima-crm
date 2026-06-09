@@ -2,20 +2,22 @@ from core.permissions import AccountingPermissions
 from core.views import BasePermissionMixin, BaseSerializerMixin
 from django.db.models.aggregates import Sum, Count, Min, Max
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import generics,viewsets
+from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from src.spendings.filters import SpendingFilter
 from src.spendings.serializers import SpendingSerializer
+
+from src.spendings.models import Spending
 
 
 # Create your views here.
 class SpendingViewSet(
     BasePermissionMixin,
     BaseSerializerMixin,
-    generics.RetrieveUpdateDestroyAPIView,
-    viewsets.GenericViewSet
+    viewsets.ModelViewSet,
 ):
+    queryset = Spending.objects.all()
     serializer_class = SpendingSerializer
     permission_classes = (AccountingPermissions,)
 
