@@ -6,6 +6,7 @@ from src.deals.models import Deal
 
 # Create your models here.
 class Onboard(models.Model):
+    name = models.CharField(max_length=120, blank=True, default="")
     deal = models.ForeignKey(Deal, on_delete=models.CASCADE, null=True)
     is_completed = models.BooleanField(default=False)
     term_of_end = models.DateField()
@@ -28,4 +29,4 @@ class Task(models.Model):
 
 class TaskPerformance(models.Model):
     task = models.ForeignKey(Task, on_delete=models.CASCADE)
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='task_performance')
