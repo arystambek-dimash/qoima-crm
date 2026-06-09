@@ -7,18 +7,33 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
+def env_list(name, default):
+    value = os.getenv(name, default)
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
+def env_bool(name, default=False):
+    value = os.getenv(name)
+
+    if value is None:
+        return default
+
+    return value.lower() in {"1", "true", "yes", "on"}
+
+
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "django-insecure-54$_rl(ogn9*m4q#)dgial7-i3@u+1)67&m%r3z@8&j())$ws1"
+SECRET_KEY = os.getenv(
+    "DJANGO_SECRET_KEY",
+    "django-insecure-54$_rl(ogn9*m4q#)dgial7-i3@u+1)67&m%r3z@8&j())$ws1",
+)
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = env_bool("DJANGO_DEBUG", True)
 
-ALLOWED_HOSTS = [
-    '*'
-]
+ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "*")
 
-CORS_ALLOWED_ORIGINS = (
-    'http://localhost:3000',  # for localhost (REACT Default)
+CORS_ALLOWED_ORIGINS = tuple(
+    env_list("CORS_ALLOWED_ORIGINS", "http://localhost:3000")
 )
 
 # Application definition
