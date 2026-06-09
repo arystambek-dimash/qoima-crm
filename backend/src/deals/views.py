@@ -1,7 +1,15 @@
 from core.permissions import IsCollaborator, DealPermissions
 from core.views import BasePermissionMixin, BaseSerializerMixin
-from rest_framework import mixins, viewsets
+from decimal import Decimal
+from django.db.models import DecimalField, F, Sum
+from django.db.models.functions import Coalesce
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import filters, mixins, status, viewsets
+from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from src.deals.models import Deal
+from src.deals.serializers import DealFileSerializer, DealPaymentSerializer
 from src.deals.serializers import DealSerializer
 
 
@@ -9,6 +17,7 @@ from src.deals.serializers import DealSerializer
 class DealViewSet(
     BasePermissionMixin,
     BaseSerializerMixin,
+    mixins.CreateModelMixin,
     mixins.RetrieveModelMixin,
     mixins.UpdateModelMixin,
     mixins.DestroyModelMixin,
@@ -16,10 +25,86 @@ class DealViewSet(
     viewsets.GenericViewSet,
 ):
     serializer_class = DealSerializer
-    permission_classes = [IsAuthenticated, ]
+    permission_classes = [IsAuthenticated, DealPermissions]
     permissions = {
-        "create": [IsCollaborator, DealPermissions],
-        "update": [DealPermissions, ],
-        "destroy": [DealPermissions, ],
-        "partial_update": [DealPermissions, ],
+        "create": [IsCollaborator | DealPermissions],
     }
+    serializers = {
+        "create_file": DealFileSerializer,
+        "create_payment": DealPaymentSerializer,
+    }
+    queryset = Deal.objects.all()
+    filter_backends = (
+        DjangoFilterBackend,
+        filters.SearchFilter,
+        filters.OrderingFilter,
+    )
+    filterset_fields = ("user", "stage", "is_active")
+    search_fields = (
+        "user__username",
+        "user__email",
+        "user__first_name",
+        "user__last_name",
+    )
+    ordering_fields = (
+        "id",
+        "date_start",
+        "date_end",
+        "deal_amount",
+        "paid_to_date",
+        "remaining",
+    )
+
+    def get_queryset(self):
+        zero_amount = Decimal("0.00")
+
+        return (
+            Deal.objects.select_related("user")
+            .prefetch_related("files", "payments")
+            .annotate(
+                paid_to_date=Coalesce(
+                    Sum("payments__amount"),
+                    zero_amount,
+                    output_field=DecimalField(max_digits=20, decimal_places=2),
+                ),
+            )
+            .annotate(
+                remaining=F("deal_amount") - F("paid_to_date"),
+            )
+        )
+
+    @action(detail=True, methods=["post"], url_path="files")
+    def create_file(self, request, *args, **kwargs):
+        deal = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(deal=deal)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["post"], url_path="payments")
+    def create_payment(self, request, *args, **kwargs):
+        deal = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(deal=deal)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["delete"], url_path=r"files/(?P<file_id>[^/.]+)")
+    def delete_file(self, request, file_id=None, *args, **kwargs):
+        deal = self.get_object()
+        deleted_count, _ = deal.files.filter(id=file_id).delete()
+
+        if deleted_count == 0:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=["delete"], url_path=r"payments/(?P<payment_id>[^/.]+)")
+    def delete_payment(self, request, payment_id=None, *args, **kwargs):
+        deal = self.get_object()
+        deleted_count, _ = deal.payments.filter(id=payment_id).delete()
+
+        if deleted_count == 0:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
