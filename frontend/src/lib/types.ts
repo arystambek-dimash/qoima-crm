@@ -8,6 +8,7 @@ export interface User {
   first_name: string;
   last_name: string;
   role: UserRole;
+  telegram_id?: number | null;
   /** Optional — present once backend adds it to /api/users/profile/. */
   is_superuser?: boolean;
   is_staff?: boolean;
@@ -205,7 +206,10 @@ export interface UserCreate {
   first_name?: string;
   last_name?: string;
   role: UserRole;
+  telegram_id?: number | null;
 }
+
+export type UserUpdate = Partial<Omit<UserCreate, "password">>;
 
 /* -------------------- Incomes -------------------- */
 

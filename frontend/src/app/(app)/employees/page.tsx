@@ -12,7 +12,7 @@ import { PermissionDenied } from "@/components/permission-gate";
 import { employees } from "@/lib/endpoints";
 import { asApiError } from "@/lib/api";
 import { useRole, useIsSuperuser, useHasPermission } from "@/lib/permissions";
-import { userDisplayName, userEmail } from "@/lib/user-helpers";
+import { userDisplayName, userEmail, userTelegramId } from "@/lib/user-helpers";
 import { formatCurrency, cn, plural } from "@/lib/utils";
 import {
   EMPLOYEE_PERMISSION_FIELDS,
@@ -213,6 +213,7 @@ function EmployeeRow({ e }: { e: Employee }) {
   const isAdmin = e.employees_can_create || e.employees_can_delete;
   const name = userDisplayName(e.user);
   const email = userEmail(e.user);
+  const telegramId = userTelegramId(e.user);
 
   return (
     <TR>
@@ -229,6 +230,11 @@ function EmployeeRow({ e }: { e: Employee }) {
             <span className="text-[12px] text-ink-3">
               {email || `ID ${String(e.id).padStart(4, "0")}`}
             </span>
+            {telegramId && (
+              <span className="text-[11px] text-ink-4 tabular-nums">
+                TG {telegramId}
+              </span>
+            )}
           </div>
         </Link>
       </TD>

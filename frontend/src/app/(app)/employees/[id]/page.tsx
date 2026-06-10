@@ -11,10 +11,15 @@ import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Input, Field } from "@/components/ui/input";
-import { employees } from "@/lib/endpoints";
+import { employees, users } from "@/lib/endpoints";
 import { asApiError } from "@/lib/api";
 import { formatCurrency, plural } from "@/lib/utils";
-import { userDisplayName, userEmail, userIdOf } from "@/lib/user-helpers";
+import {
+  nestedUserOf,
+  userDisplayName,
+  userEmail,
+  userIdOf,
+} from "@/lib/user-helpers";
 import {
   EMPLOYEE_PERMISSION_FIELDS,
   type EmployeePermissionField,
@@ -76,6 +81,7 @@ export default function EmployeeDetailPage({
   });
 
   const [overrides, setOverrides] = useState<Partial<Employee>>({});
+  const [telegramId, setTelegramId] = useState<string | null>(null);
 
   const draft = useMemo<Partial<Employee> | null>(() => {
     if (!q.data) return null;
@@ -88,18 +94,35 @@ export default function EmployeeDetailPage({
     setOverrides((prev) => updater(prev));
   }
 
+  const e = draft;
+  const currentUser = nestedUserOf(e?.user);
+  const telegramValue =
+    telegramId ?? (currentUser?.telegram_id ? String(currentUser.telegram_id) : "");
+
   const update = useMutation({
-    mutationFn: (payload: Partial<Employee>) =>
-      employees.update(employeeId, payload),
+    mutationFn: async (payload: Partial<Employee>) => {
+      const updatedEmployee = await employees.update(employeeId, payload);
+      const userId = userIdOf(payload.user);
+
+      if (userId && telegramId !== null) {
+        const updatedUser = await users.update(userId, {
+          telegram_id: telegramId ? Number(telegramId) : null,
+        });
+
+        return { ...updatedEmployee, user: updatedUser };
+      }
+
+      return updatedEmployee;
+    },
     onSuccess: (data) => {
       qc.setQueryData(["employee", employeeId], data);
       qc.invalidateQueries({ queryKey: ["employees"] });
+      qc.invalidateQueries({ queryKey: ["users"] });
+      setTelegramId(null);
       toast.success("Сохранено.");
     },
     onError: (err) => toast.error(asApiError(err).message),
   });
-
-  const e = draft;
 
   if (!e && q.isLoading) return <Topbar eyebrow="Команда" title="Загрузка…" />;
   if (!e)
@@ -241,6 +264,19 @@ export default function EmployeeDetailPage({
                   onChange={(ev) =>
                     setDraft((prev) => ({ ...prev, salary: ev.target.value }))
                   }
+                />
+              </Field>
+              <Field
+                label="Telegram ID"
+                hint="User sends /whoami to the bot, then paste that Telegram ID here."
+              >
+                <Input
+                  type="number"
+                  inputMode="numeric"
+                  min="1"
+                  value={telegramValue}
+                  onChange={(ev) => setTelegramId(ev.target.value)}
+                  placeholder="123456789"
                 />
               </Field>
               <div className="pt-3 border-t border-hairline text-[12px] text-ink-3 space-y-1">

@@ -124,6 +124,7 @@ export function InviteEmployeeDialog({
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
+  const [telegramId, setTelegramId] = useState("");
   const [password, setPassword] = useState("");
   // Employee fields
   const [jobTitle, setJobTitle] = useState("");
@@ -144,6 +145,7 @@ export function InviteEmployeeDialog({
     setLastName("");
     setEmail("");
     setUsername("");
+    setTelegramId("");
     setPassword("");
     setJobTitle("");
     setSalary("");
@@ -161,6 +163,7 @@ export function InviteEmployeeDialog({
         first_name: firstName || undefined,
         last_name: lastName || undefined,
         role: "employee",
+        telegram_id: telegramId ? Number(telegramId) : undefined,
       });
       // Step 2: create the Employee row with role title, salary, permissions
       const employee = await employees.create({
@@ -232,6 +235,19 @@ export function InviteEmployeeDialog({
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="aidar@company.kz"
                 required
+              />
+            </Field>
+            <Field
+              label="Telegram ID"
+              hint="Optional. The employee can send /whoami to the bot to get this ID."
+            >
+              <Input
+                type="number"
+                inputMode="numeric"
+                min="1"
+                value={telegramId}
+                onChange={(e) => setTelegramId(e.target.value)}
+                placeholder="123456789"
               />
             </Field>
             <div className="grid grid-cols-2 gap-3">

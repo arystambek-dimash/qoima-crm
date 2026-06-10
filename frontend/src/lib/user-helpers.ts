@@ -42,3 +42,10 @@ export function userDisplayName(
 export function userEmail(u: number | User | null | undefined): string {
   return isNestedUser(u) ? u.email ?? "" : "";
 }
+
+/** Telegram ID if the nested User object is present. */
+export function userTelegramId(
+  u: number | User | null | undefined
+): number | null {
+  return isNestedUser(u) ? u.telegram_id ?? null : null;
+}

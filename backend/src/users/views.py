@@ -1,4 +1,5 @@
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ObjectDoesNotExist
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import mixins, permissions, status, viewsets
 from rest_framework.decorators import action
@@ -10,11 +11,32 @@ from core.views import BasePermissionMixin, BaseSerializerMixin
 from src.users.serializers import LoginViaEmailSerializer, UserCreateSerializer, UserSerializer
 
 
+class UserManagePermission(permissions.BasePermission):
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+
+        if request.user.is_staff or request.user.is_superuser:
+            return True
+
+        try:
+            employee = request.user.employee
+        except ObjectDoesNotExist:
+            return False
+
+        if view.action == "create":
+            return bool(employee.employees_can_create or employee.deals_can_create)
+
+        return bool(employee.employees_can_update)
+
+
 class UserViewSet(
     BaseSerializerMixin,
     BasePermissionMixin,
     mixins.ListModelMixin,
     mixins.CreateModelMixin,
+    mixins.RetrieveModelMixin,
+    mixins.UpdateModelMixin,
     viewsets.GenericViewSet,
 ):
     queryset = get_user_model().objects.all()
@@ -28,10 +50,16 @@ class UserViewSet(
         "profile": UserSerializer,
         "list": UserSerializer,
         "create": UserCreateSerializer,
+        "retrieve": UserSerializer,
+        "update": UserSerializer,
+        "partial_update": UserSerializer,
     }
     permissions = {
         "login_via_email": [permissions.AllowAny,],
-        "profile": [permissions.IsAuthenticated,]
+        "profile": [permissions.IsAuthenticated,],
+        "create": [UserManagePermission],
+        "update": [UserManagePermission],
+        "partial_update": [UserManagePermission],
     }
 
     @action(detail=False, methods=["post"], url_path="login-via-email")

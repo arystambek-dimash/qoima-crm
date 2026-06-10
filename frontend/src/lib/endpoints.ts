@@ -27,6 +27,7 @@ import type {
   TaskCategoryCreate,
   User,
   UserCreate,
+  UserUpdate,
   UserRole,
 } from "./types";
 
@@ -63,6 +64,8 @@ export const users = {
       .then((r) => unwrapList(r.data)),
   create: (payload: UserCreate) =>
     api.post<User>("/users/", payload).then((r) => r.data),
+  update: (id: number, payload: UserUpdate) =>
+    api.patch<User>(`/users/${id}/`, payload).then((r) => r.data),
 };
 
 /* ---------------- Employees ---------------- */

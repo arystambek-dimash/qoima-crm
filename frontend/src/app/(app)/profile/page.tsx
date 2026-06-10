@@ -91,6 +91,12 @@ export default function ProfilePage() {
               <Field label="Логин">
                 <Input value={user.username} readOnly />
               </Field>
+              <Field
+                label="Telegram ID"
+                hint="Send /whoami to the bot and ask an admin to set this value if it is empty."
+              >
+                <Input value={user.telegram_id ?? ""} readOnly />
+              </Field>
             </PanelBody>
           </Panel>
 
