@@ -42,6 +42,9 @@ const PERMISSION_LABELS: Record<EmployeePermissionField, string> = {
   accounting_can_create: "Бухгалтерия · создание",
   accounting_can_update: "Бухгалтерия · изменение",
   accounting_can_delete: "Бухгалтерия · удаление",
+  wallets_can_create: "Кошелёк · создание",
+  wallets_can_update: "Кошелёк · изменение",
+  wallets_can_delete: "Кошелёк · удаление",
 };
 
 export default function EmployeesPage() {

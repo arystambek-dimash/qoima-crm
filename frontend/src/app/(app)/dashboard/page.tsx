@@ -396,9 +396,16 @@ function EmployeeDashboard({
         {data && finance && tasks && (
           <>
             {/* KPI cards */}
-            <section className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8 stagger">
+            <section className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 mb-8 stagger">
+              {finance.wallet && (
+                <StatCard
+                  accent
+                  label={`Кошелёк · ${finance.wallet.name}`}
+                  value={formatCurrency(finance.wallet.balance)}
+                  caption="Текущий остаток компании"
+                />
+              )}
               <StatCard
-                accent
                 label="Чистая прибыль"
                 value={formatCurrency(finance.summary.net_total)}
                 caption={

@@ -15,6 +15,7 @@ import {
   User2,
   Search,
   ChevronsLeft,
+  Wallet as WalletIcon,
 } from "lucide-react";
 import type { EmployeePermissionField } from "@/lib/types";
 
@@ -63,6 +64,12 @@ const NAV: { label: string; items: NavItem[] }[] = [
         icon: Receipt,
         roles: ["employee"],
         requires: "accounting_can_retrieve",
+      },
+      {
+        href: "/wallets",
+        label: "Кошелёк",
+        icon: WalletIcon,
+        roles: ["employee"],
       },
     ],
   },

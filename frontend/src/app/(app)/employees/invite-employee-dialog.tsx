@@ -62,6 +62,14 @@ const PERMISSION_GROUPS: {
       { f: "accounting_can_delete", label: "Удалять записи" },
     ],
   },
+  {
+    title: "Кошелёк компании",
+    fields: [
+      { f: "wallets_can_create", label: "Создавать кошельки" },
+      { f: "wallets_can_update", label: "Изменять кошельки" },
+      { f: "wallets_can_delete", label: "Удалять кошельки" },
+    ],
+  },
 ];
 
 /* ---- Sensible role presets so the admin doesn't tick 10 switches ---- */
@@ -90,11 +98,23 @@ const ROLE_PRESETS: Record<
       accounting_can_create: true,
       accounting_can_update: true,
       accounting_can_delete: true,
+      wallets_can_create: true,
+      wallets_can_update: true,
     },
   },
   finance_viewer: {
     label: "Аналитик",
     permissions: { accounting_can_retrieve: true },
+  },
+  cashier: {
+    label: "Кассир",
+    permissions: {
+      accounting_can_retrieve: true,
+      accounting_can_create: true,
+      wallets_can_create: true,
+      wallets_can_update: true,
+      wallets_can_delete: true,
+    },
   },
   admin: {
     label: "Администратор",

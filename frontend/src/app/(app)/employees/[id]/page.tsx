@@ -64,6 +64,14 @@ const PERMISSION_GROUPS: {
       { f: "accounting_can_delete", label: "Удалять записи" },
     ],
   },
+  {
+    title: "Кошелёк компании",
+    fields: [
+      { f: "wallets_can_create", label: "Создавать кошельки" },
+      { f: "wallets_can_update", label: "Изменять кошельки" },
+      { f: "wallets_can_delete", label: "Удалять кошельки" },
+    ],
+  },
 ];
 
 export default function EmployeeDetailPage({

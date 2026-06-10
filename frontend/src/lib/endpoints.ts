@@ -29,6 +29,9 @@ import type {
   UserCreate,
   UserUpdate,
   UserRole,
+  Wallet,
+  WalletCreate,
+  WalletLog,
 } from "./types";
 
 /* ---------------- Auth ---------------- */
@@ -305,4 +308,33 @@ export const dashboard = {
         params: dashboardParams(filters),
       })
       .then((r) => r.data),
+};
+
+/* ---------------- Wallets ----------------
+ *
+ * Read-only for any authenticated user; mutating actions are gated by the
+ * wallets_can_create / wallets_can_update / wallets_can_delete permissions
+ * (or superuser/staff). Income/Spending create/update/delete cascade into
+ * wallet balance + WalletLog entries on the backend automatically.
+ */
+
+export const wallets = {
+  list: () =>
+    api
+      .get<Wallet[] | { results: Wallet[] }>("/wallets/")
+      .then((r) => unwrap(r.data)),
+  current: () =>
+    api.get<Wallet>("/wallets/current/").then((r) => r.data),
+  retrieve: (id: number) =>
+    api.get<Wallet>(`/wallets/${id}/`).then((r) => r.data),
+  create: (payload: WalletCreate) =>
+    api.post<Wallet>("/wallets/", payload).then((r) => r.data),
+  update: (id: number, payload: Partial<WalletCreate>) =>
+    api.patch<Wallet>(`/wallets/${id}/`, payload).then((r) => r.data),
+  remove: (id: number) =>
+    api.delete<void>(`/wallets/${id}/`).then((r) => r.data),
+  logs: () =>
+    api
+      .get<WalletLog[] | { results: WalletLog[] }>("/wallets/logs/")
+      .then((r) => unwrap(r.data)),
 };

@@ -30,6 +30,9 @@ export const EMPLOYEE_PERMISSION_FIELDS = [
   "employees_can_delete",
   "employees_can_create",
   "employees_can_update",
+  "wallets_can_create",
+  "wallets_can_update",
+  "wallets_can_delete",
 ] as const;
 
 export type EmployeePermissionField = (typeof EMPLOYEE_PERMISSION_FIELDS)[number];
@@ -318,6 +321,53 @@ export interface SpendingCreate {
   note?: string;
 }
 
+/* -------------------- Wallets -------------------- */
+
+export interface Wallet {
+  id: number;
+  name: string;
+  balance: string;
+  is_default: boolean;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WalletCreate {
+  name: string;
+  balance?: string;
+  is_default?: boolean;
+  is_active?: boolean;
+}
+
+export type WalletLogAction =
+  | "wallet_created"
+  | "wallet_updated"
+  | "wallet_deleted"
+  | "wallet_initialized"
+  | "income_created"
+  | "income_updated"
+  | "income_deleted"
+  | "spending_created"
+  | "spending_updated"
+  | "spending_deleted";
+
+export interface WalletLog {
+  id: number;
+  wallet: number | null;
+  wallet_name: string | null;
+  actor: number | null;
+  actor_detail: User | null;
+  action: WalletLogAction;
+  amount_delta: string;
+  balance_before: string;
+  balance_after: string;
+  description: string;
+  related_object_type: string;
+  related_object_id: string;
+  created_at: string;
+}
+
 /* -------------------- Dashboard analytics -------------------- */
 
 export type DashboardPeriod = "week" | "month" | "year" | "all" | "custom";
@@ -353,9 +403,17 @@ export interface DashboardByTypeRow {
   total_amount: string;
 }
 
+export interface DashboardWalletSummary {
+  id: number;
+  name: string;
+  balance: string;
+  updated_at: string;
+}
+
 export interface DashboardFinance {
   summary: DashboardAmountSummary;
   all_time: DashboardAmountSummary;
+  wallet: DashboardWalletSummary;
   series: DashboardFinancePoint[];
   by_type: {
     incomes: DashboardByTypeRow[];
