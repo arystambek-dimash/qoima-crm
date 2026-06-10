@@ -89,3 +89,12 @@ class AccountingPermissions(EmployeeFlagPermission):
         "partial_update": "accounting_can_update",
         "destroy": "accounting_can_delete",
     }
+
+
+class WalletPermissions(EmployeeFlagPermission):
+    permission_map = {
+        "create": "wallets_can_create",
+        "update": "wallets_can_update",
+        "partial_update": "wallets_can_update",
+        "destroy": "wallets_can_delete",
+    }

@@ -1,5 +1,6 @@
 from core.permissions import AccountingPermissions
 from core.views import BasePermissionMixin, BaseSerializerMixin
+from django.db import transaction
 from django.db.models import Count, Min, Max, Sum
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets
@@ -8,6 +9,11 @@ from rest_framework.response import Response
 from src.incomes.filters import IncomeFilter
 from src.incomes.models import Income
 from src.incomes.serializers import IncomeSerializer
+from src.wallets.services import (
+    record_income_created,
+    record_income_deleted,
+    record_income_updated,
+)
 
 
 class IncomeViewSet(
@@ -21,6 +27,22 @@ class IncomeViewSet(
 
     filter_backends = [DjangoFilterBackend]
     filterset_class = IncomeFilter
+
+    def perform_create(self, serializer):
+        with transaction.atomic():
+            income = serializer.save()
+            record_income_created(income, actor=self.request.user)
+
+    def perform_update(self, serializer):
+        with transaction.atomic():
+            old_amount = serializer.instance.amount
+            income = serializer.save()
+            record_income_updated(income, old_amount=old_amount, actor=self.request.user)
+
+    def perform_destroy(self, instance):
+        with transaction.atomic():
+            record_income_deleted(instance, actor=self.request.user)
+            instance.delete()
 
     @action(detail=False, methods=["get"], url_path="analytics")
     def analytics(self, request):

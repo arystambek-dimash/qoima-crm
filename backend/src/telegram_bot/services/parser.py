@@ -43,6 +43,9 @@ class CommandParser:
         if command == "whoami":
             return ParsedCommand(name="whoami", raw=raw)
 
+        if command in {"wallet", "balance"}:
+            return ParsedCommand(name="wallet", raw=raw)
+
         if command == "income":
             return self._parse_money_command("income", raw, rest)
 

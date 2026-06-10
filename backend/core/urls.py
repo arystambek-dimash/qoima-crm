@@ -10,6 +10,7 @@ urlpatterns = [
     path('api/spendings/', include('src.spendings.urls')),
     path("api/onboards/", include("src.onboards.urls")),
     path("api/incomes/", include("src.incomes.urls")),
+    path("api/wallets/", include("src.wallets.urls")),
     path("api/dashboard/", include("src.dashboard.urls")),
     path("api/telegram/", include("src.telegram_bot.urls")),
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),

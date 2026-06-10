@@ -13,6 +13,7 @@ from rest_framework.response import Response
 from src.incomes.models import Income
 from src.onboards.models import Task
 from src.spendings.models import Spending
+from src.wallets.models import Wallet
 
 
 ZERO_AMOUNT = Decimal("0.00")
@@ -138,6 +139,7 @@ class DashboardViewSet(viewsets.GenericViewSet):
         return {
             "summary": selected,
             "all_time": all_time,
+            "wallet": self._wallet(),
             "series": [
                 {
                     "date": income["date"],
@@ -161,6 +163,15 @@ class DashboardViewSet(viewsets.GenericViewSet):
                     .order_by("type")
                 ),
             },
+        }
+
+    def _wallet(self):
+        wallet = Wallet.default()
+        return {
+            "id": wallet.id,
+            "name": wallet.name,
+            "balance": wallet.balance,
+            "updated_at": wallet.updated_at,
         }
 
     def _tasks(self, tasks, params):

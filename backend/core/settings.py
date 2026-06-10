@@ -53,6 +53,7 @@ INSTALLED_APPS = [
     "src.onboards.apps.OnboardsConfig",
     "src.spendings.apps.SpendingsConfig",
     "src.incomes.apps.IncomesConfig",
+    "src.wallets.apps.WalletsConfig",
     "src.telegram_bot.apps.TelegramBotConfig",
     "drf_spectacular",
     "rest_framework_simplejwt",

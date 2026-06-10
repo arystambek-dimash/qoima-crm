@@ -21,3 +21,6 @@ class Employee(models.Model):
     employees_can_create = models.BooleanField(default=False)
     employees_can_update = models.BooleanField(default=False)
     employees_can_see_salary = models.BooleanField(default=False)
+    wallets_can_create = models.BooleanField(default=False)
+    wallets_can_update = models.BooleanField(default=False)
+    wallets_can_delete = models.BooleanField(default=False)

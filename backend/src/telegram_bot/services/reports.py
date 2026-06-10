@@ -8,6 +8,7 @@ from src.incomes.models import Income
 from src.onboards.models import Task
 from src.spendings.models import Spending
 from src.telegram_bot.services.parser import ParsedCommand
+from src.wallets.models import Wallet
 
 
 ZERO = Decimal("0.00")
@@ -29,10 +30,12 @@ class ReportBuilder:
         income_total = self._sum_amount(incomes)
         spending_total = self._sum_amount(spendings)
         net_total = income_total - spending_total
+        wallet = Wallet.default()
 
         lines = [
             f"Report: {date_from.isoformat()} - {date_to.isoformat()}",
             "",
+            f"Wallet:   {self._money(wallet.balance)} KZT",
             f"Income:   {self._money(income_total)} KZT",
             f"Spending: {self._money(spending_total)} KZT",
             f"Net:      {self._money(net_total)} KZT",

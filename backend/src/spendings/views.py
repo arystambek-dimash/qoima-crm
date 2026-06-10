@@ -1,5 +1,6 @@
 from core.permissions import AccountingPermissions
 from core.views import BasePermissionMixin, BaseSerializerMixin
+from django.db import transaction
 from django.db.models.aggregates import Sum, Count, Min, Max
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets
@@ -9,6 +10,11 @@ from src.spendings.filters import SpendingFilter
 from src.spendings.serializers import SpendingSerializer
 
 from src.spendings.models import Spending
+from src.wallets.services import (
+    record_spending_created,
+    record_spending_deleted,
+    record_spending_updated,
+)
 
 
 # Create your views here.
@@ -23,6 +29,22 @@ class SpendingViewSet(
 
     filter_backends = [DjangoFilterBackend]
     filterset_class = SpendingFilter
+
+    def perform_create(self, serializer):
+        with transaction.atomic():
+            spending = serializer.save()
+            record_spending_created(spending, actor=self.request.user)
+
+    def perform_update(self, serializer):
+        with transaction.atomic():
+            old_amount = serializer.instance.amount
+            spending = serializer.save()
+            record_spending_updated(spending, old_amount=old_amount, actor=self.request.user)
+
+    def perform_destroy(self, instance):
+        with transaction.atomic():
+            record_spending_deleted(instance, actor=self.request.user)
+            instance.delete()
 
     @action(detail=False, methods=["get"], url_path="analytics")
     def analytics(self, request):

@@ -1,5 +1,7 @@
-from django.core.exceptions import ObjectDoesNotExist
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ObjectDoesNotExist
+from django.db import transaction
+from django.utils import timezone
 from src.incomes.models import Income
 from src.spendings.models import Spending
 from src.telegram_bot.models import (
@@ -9,6 +11,8 @@ from src.telegram_bot.models import (
 from src.telegram_bot.services.parser import CommandParseError, CommandParser
 from src.telegram_bot.services.reports import ReportBuilder
 from src.telegram_bot.services.telegram import TelegramClient
+from src.wallets.models import Wallet, WalletLog
+from src.wallets.services import record_income_created, record_spending_created
 
 
 class TelegramBotService:
@@ -54,26 +58,41 @@ class TelegramBotService:
                 self._require_accounting(user, "accounting_can_retrieve")
                 response = self.reports.build(command)
                 status = TelegramCommandLog.Status.SUCCESS
+            elif command.name == "wallet":
+                response = self._wallet_text()
+                status = TelegramCommandLog.Status.SUCCESS
             elif command.name == "income":
                 self._require_accounting(user, "accounting_can_create")
-                created_object = Income.objects.create(
-                    name=command.label,
-                    type=command.label,
-                    amount=command.amount,
-                    date_earned=command.record_date,
-                    note=f"Telegram: {text}",
-                )
+                with transaction.atomic():
+                    created_object = Income.objects.create(
+                        name=command.label,
+                        type=command.label,
+                        amount=command.amount,
+                        date_earned=command.record_date,
+                        note=f"Telegram: {text}",
+                    )
+                    record_income_created(
+                        created_object,
+                        actor=user,
+                        description=f"Telegram income: {command.label}",
+                    )
                 response = self._created_text("income", command)
                 status = TelegramCommandLog.Status.SUCCESS
             elif command.name == "spending":
                 self._require_accounting(user, "accounting_can_create")
-                created_object = Spending.objects.create(
-                    name=command.label,
-                    type=command.label,
-                    amount=command.amount,
-                    date_spend=command.record_date,
-                    note=f"Telegram: {text}",
-                )
+                with transaction.atomic():
+                    created_object = Spending.objects.create(
+                        name=command.label,
+                        type=command.label,
+                        amount=command.amount,
+                        date_spend=command.record_date,
+                        note=f"Telegram: {text}",
+                    )
+                    record_spending_created(
+                        created_object,
+                        actor=user,
+                        description=f"Telegram spending: {command.label}",
+                    )
                 response = self._created_text("spending", command)
                 status = TelegramCommandLog.Status.SUCCESS
             else:
@@ -160,7 +179,7 @@ class TelegramBotService:
 
     def _require_accounting(self, user, permission_field: str) -> None:
         if not user or not user.is_authenticated:
-            raise PermissionError("Telegram account is not linked to a CRM user.")
+            raise PermissionError("Telegram аккаунт не привязан к CRM-пользователю.")
 
         if user.is_staff or user.is_superuser:
             return
@@ -168,17 +187,18 @@ class TelegramBotService:
         try:
             employee = user.employee
         except ObjectDoesNotExist as exc:
-            raise PermissionError("CRM user has no employee permission profile.") from exc
+            raise PermissionError("У CRM-пользователя нет профиля сотрудника.") from exc
 
         if not getattr(employee, permission_field, False):
-            raise PermissionError("You do not have permission for this command.")
+            raise PermissionError("У вас нет прав для этой команды.")
 
     def _created_text(self, record_type: str, command) -> str:
+        label = "доход" if record_type == "income" else "расход"
         return (
-            f"Created {record_type}.\n"
-            f"Amount: {command.amount} KZT\n"
-            f"Type: {command.label}\n"
-            f"Date: {command.record_date.isoformat()}"
+            f"Создан {label}.\n"
+            f"Сумма: {command.amount} KZT\n"
+            f"Тип: {command.label}\n"
+            f"Дата: {command.record_date.isoformat()}"
         )
 
     def _whoami_text(self, from_data: dict, user) -> str:
@@ -188,35 +208,73 @@ class TelegramBotService:
         ]
 
         if user:
-            lines.append(f"CRM user: {user}")
+            lines.append(f"CRM пользователь: {user}")
         else:
-            lines.append("CRM user: not linked")
+            lines.append("CRM пользователь: не привязан")
 
         return "\n".join(lines)
 
     def _not_linked_text(self, from_data: dict) -> str:
         return (
-            "Your Telegram account is not linked to CRM.\n"
-            f"Send this Telegram ID to an admin: {from_data.get('id')}\n"
-            "The admin must set this value in the user's telegram_id field."
+            "Ваш Telegram аккаунт не привязан к CRM.\n"
+            f"Отправьте этот Telegram ID администратору: {from_data.get('id')}\n"
+            "Администратор должен указать его в поле telegram_id у CRM-пользователя."
         )
+
+    def _wallet_text(self) -> str:
+        wallet = Wallet.default()
+        logs = (
+            WalletLog.objects.select_related("actor", "wallet")
+            .order_by("-created_at", "-id")[:5]
+        )
+        lines = [
+            "Кошелек компании",
+            f"Баланс: {self.reports._money(wallet.balance)} KZT",
+            "",
+            "Последние изменения:",
+        ]
+
+        if not logs:
+            lines.append("Пока нет изменений.")
+            return "\n".join(lines)
+
+        for log in logs:
+            actor = self._actor_name(log.actor)
+            created_at = timezone.localtime(log.created_at).strftime("%Y-%m-%d %H:%M")
+            sign = "+" if log.amount_delta >= 0 else ""
+            description = log.description or log.get_action_display()
+            lines.append(
+                f"{created_at} {sign}{self.reports._money(log.amount_delta)} KZT "
+                f"- {description} ({actor})"
+            )
+
+        return "\n".join(lines)
+
+    def _actor_name(self, actor) -> str:
+        if not actor:
+            return "system"
+
+        return actor.get_full_name() or actor.email or actor.username or str(actor)
 
     def _help_text(self) -> str:
         return (
-            "CRM bot commands:\n\n"
-            "1. Add income\n"
+            "Команды CRM-бота:\n\n"
+            "1. Добавить доход\n"
             "/income 15000 website\n"
             "/income 15000 website 2026-06-09\n\n"
-            "2. Add spending\n"
+            "2. Добавить расход\n"
             "/spending 5000 ads\n"
             "/spending 5000 office yesterday\n\n"
-            "3. Get a report\n"
+            "3. Получить отчет\n"
             "/report week\n"
             "/report month\n"
             "/report 2026-06-01 2026-06-09\n\n"
-            "Periods: week, month, year, all.\n"
-            "Dates: today, yesterday, YYYY-MM-DD, or DD.MM.YYYY.\n\n"
-            "4. Get your Telegram ID\n"
+            "4. Посмотреть кошелек компании\n"
+            "/wallet\n\n"
+            "5. Узнать свой Telegram ID\n"
             "/whoami\n\n"
-            "Before using the bot, an admin must set your Telegram ID on your CRM user."
+            "Периоды: week, month, year, all.\n"
+            "Даты: today, yesterday, YYYY-MM-DD или DD.MM.YYYY.\n\n"
+            "Перед использованием бота администратор должен указать ваш Telegram ID "
+            "в CRM-пользователе."
         )
