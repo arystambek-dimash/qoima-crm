@@ -1,32 +1,9 @@
 from django.contrib import admin
 
 from src.telegram_bot.models import (
-    TelegramAccount,
     TelegramChat,
     TelegramCommandLog,
 )
-
-
-@admin.register(TelegramAccount)
-class TelegramAccountAdmin(admin.ModelAdmin):
-    list_display = (
-        "user",
-        "telegram_user_id",
-        "username",
-        "first_name",
-        "last_name",
-        "is_active",
-        "updated_at",
-    )
-    list_filter = ("is_active",)
-    search_fields = (
-        "user__username",
-        "user__email",
-        "telegram_user_id",
-        "username",
-        "first_name",
-        "last_name",
-    )
 
 
 @admin.register(TelegramChat)

@@ -7,6 +7,12 @@ from core.enums import UserRole
 # Create your models here.
 class User(AbstractUser):
     email = models.EmailField(unique=True)
+    telegram_id = models.BigIntegerField(
+        unique=True,
+        null=True,
+        blank=True,
+        db_index=True,
+    )
     role = models.CharField(
         choices=UserRole.choices,
         default=UserRole.EMPLOYEE,

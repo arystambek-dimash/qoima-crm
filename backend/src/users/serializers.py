@@ -17,6 +17,7 @@ class UserSerializer(serializers.ModelSerializer):
             "first_name",
             "last_name",
             "role",
+            "telegram_id",
             "is_staff",
             "is_superuser",
         )
@@ -36,6 +37,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
             "first_name",
             "last_name",
             "role",
+            "telegram_id",
         )
         read_only_fields = ("id",)
 

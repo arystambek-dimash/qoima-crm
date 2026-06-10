@@ -1,8 +1,8 @@
 from django.core.exceptions import ObjectDoesNotExist
+from django.contrib.auth import get_user_model
 from src.incomes.models import Income
 from src.spendings.models import Spending
 from src.telegram_bot.models import (
-    TelegramAccount,
     TelegramChat,
     TelegramCommandLog,
 )
@@ -33,8 +33,7 @@ class TelegramBotService:
             return self._log_ignored(update_id, chat_data, from_data)
 
         chat = self._upsert_chat(chat_data)
-        account = self._account(from_data)
-        user = account.user if account else None
+        user = self._user(from_data)
         command_name = ""
         created_object = None
 
@@ -46,9 +45,9 @@ class TelegramBotService:
                 response = self._help_text()
                 status = TelegramCommandLog.Status.SUCCESS
             elif command.name == "whoami":
-                response = self._whoami_text(from_data, account)
+                response = self._whoami_text(from_data, user)
                 status = TelegramCommandLog.Status.SUCCESS
-            elif not account or not account.is_active:
+            elif not user:
                 response = self._not_linked_text(from_data)
                 status = TelegramCommandLog.Status.DENIED
             elif command.name == "report":
@@ -96,7 +95,6 @@ class TelegramBotService:
         log = TelegramCommandLog.objects.create(
             update_id=update_id,
             chat=chat,
-            account=account,
             user=user,
             telegram_user_id=from_data.get("id"),
             telegram_chat_id=chat_data.get("id"),
@@ -119,12 +117,11 @@ class TelegramBotService:
 
     def _log_ignored(self, update_id, chat_data: dict, from_data: dict) -> dict:
         chat = self._upsert_chat(chat_data)
-        account = self._account(from_data)
+        user = self._user(from_data)
         log = TelegramCommandLog.objects.create(
             update_id=update_id,
             chat=chat,
-            account=account,
-            user=account.user if account else None,
+            user=user,
             telegram_user_id=from_data.get("id"),
             telegram_chat_id=chat_data.get("id"),
             status=TelegramCommandLog.Status.IGNORED,
@@ -148,25 +145,18 @@ class TelegramBotService:
         )
         return chat
 
-    def _account(self, from_data: dict) -> TelegramAccount | None:
+    def _user(self, from_data: dict):
         telegram_user_id = from_data.get("id")
 
         if not telegram_user_id:
             return None
 
-        account = (
-            TelegramAccount.objects.select_related("user")
-            .filter(telegram_user_id=telegram_user_id)
+        return (
+            get_user_model()
+            .objects.select_related("employee")
+            .filter(telegram_id=telegram_user_id)
             .first()
         )
-
-        if account:
-            account.username = from_data.get("username", "")
-            account.first_name = from_data.get("first_name", "")
-            account.last_name = from_data.get("last_name", "")
-            account.save(update_fields=["username", "first_name", "last_name", "updated_at"])
-
-        return account
 
     def _require_accounting(self, user, permission_field: str) -> None:
         if not user or not user.is_authenticated:
@@ -191,14 +181,14 @@ class TelegramBotService:
             f"Date: {command.record_date.isoformat()}"
         )
 
-    def _whoami_text(self, from_data: dict, account: TelegramAccount | None) -> str:
+    def _whoami_text(self, from_data: dict, user) -> str:
         lines = [
             f"Telegram ID: {from_data.get('id')}",
             f"Username: @{from_data.get('username')}" if from_data.get("username") else "Username: -",
         ]
 
-        if account:
-            lines.append(f"CRM user: {account.user}")
+        if user:
+            lines.append(f"CRM user: {user}")
         else:
             lines.append("CRM user: not linked")
 
@@ -208,7 +198,7 @@ class TelegramBotService:
         return (
             "Your Telegram account is not linked to CRM.\n"
             f"Send this Telegram ID to an admin: {from_data.get('id')}\n"
-            "The admin must create a TelegramAccount in Django admin."
+            "The admin must set this value in the user's telegram_id field."
         )
 
     def _help_text(self) -> str:
@@ -228,5 +218,5 @@ class TelegramBotService:
             "Dates: today, yesterday, YYYY-MM-DD, or DD.MM.YYYY.\n\n"
             "4. Get your Telegram ID\n"
             "/whoami\n\n"
-            "Before using the bot, an admin must link your Telegram ID to a CRM user."
+            "Before using the bot, an admin must set your Telegram ID on your CRM user."
         )

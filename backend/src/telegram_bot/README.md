@@ -36,8 +36,8 @@ poetry run python manage.py set_telegram_webhook https://your-domain.com/api/tel
 /whoami
 ```
 
-7. Copy the Telegram ID and create a `TelegramAccount` in Django admin.
-   Link that Telegram ID to the correct CRM user.
+7. Copy the Telegram ID and set it on the correct CRM user's `telegram_id`
+   field in Django admin.
 
 ## Commands
 
