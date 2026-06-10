@@ -1,0 +1,73 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/opt/qoima-crm' }}
+  DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+  DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+
+      - name: Create deploy directory
+        run: |
+          ssh -i ~/.ssh/deploy_key \
+            "$DEPLOY_USER@$DEPLOY_HOST" \
+            "mkdir -p '${DEPLOY_PATH}'"
+
+      - name: Sync project files
+        run: |
+          rsync -az --delete \
+            --exclude '.git' \
+            --exclude '.github' \
+            --exclude '.env' \
+            --exclude 'backend/.env' \
+            --exclude 'frontend/.env.local' \
+            --exclude 'frontend/.next' \
+            --exclude 'frontend/node_modules' \
+            --exclude '**/__pycache__' \
+            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes" \
+            ./ "$DEPLOY_USER@$DEPLOY_HOST:${DEPLOY_PATH}/"
+
+      - name: Write production env file
+        env:
+          PRODUCTION_ENV_FILE: ${{ secrets.PRODUCTION_ENV_FILE }}
+        run: |
+          if [ -n "$PRODUCTION_ENV_FILE" ]; then
+            printf '%s' "$PRODUCTION_ENV_FILE" | ssh -i ~/.ssh/deploy_key \
+              "$DEPLOY_USER@$DEPLOY_HOST" \
+              "cat > '${DEPLOY_PATH}/.env'"
+          else
+            echo "PRODUCTION_ENV_FILE secret is empty; keeping existing server .env."
+          fi
+
+      - name: Deploy with Docker Compose
+        run: |
+          ssh -i ~/.ssh/deploy_key \
+            "$DEPLOY_USER@$DEPLOY_HOST" \
+            "cd '${DEPLOY_PATH}' && \
+             test -f .env && \
+             docker compose --env-file .env up -d --build && \
+             docker compose --env-file .env exec -T backend python manage.py ensure_superuser && \
+             docker compose --env-file .env restart backend frontend nginx && \
+             docker image prune -f"

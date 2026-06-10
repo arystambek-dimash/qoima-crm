@@ -22,9 +22,8 @@ def env_bool(name, default=False):
 
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv(
-    "DJANGO_SECRET_KEY",
-    "django-insecure-54$_rl(ogn9*m4q#)dgial7-i3@u+1)67&m%r3z@8&j())$ws1",
+SECRET_KEY = os.getenv("DJANGO_SECRET_KEY") or (
+    "django-insecure-54$_rl(ogn9*m4q#)dgial7-i3@u+1)67&m%r3z@8&j())$ws1"
 )
 
 # SECURITY WARNING: don't run with debug turned on in production!
@@ -35,6 +34,8 @@ ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "*")
 CORS_ALLOWED_ORIGINS = tuple(
     env_list("CORS_ALLOWED_ORIGINS", "http://localhost:3000")
 )
+CSRF_TRUSTED_ORIGINS = env_list("CSRF_TRUSTED_ORIGINS", "")
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 # Application definition
 
@@ -135,6 +136,9 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = "static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
+MEDIA_URL = "media/"
+MEDIA_ROOT = BASE_DIR / "media"
 
 AUTH_USER_MODEL = "users.User"
 
