@@ -76,3 +76,23 @@ Renew certificates periodically with:
 ```bash
 ./deploy/init-letsencrypt.sh
 ```
+
+## Telegram Webhook
+
+The production Telegram webhook endpoint is:
+
+```text
+https://crm.qoima.com.kz/api/telegram/webhook/
+```
+
+Set this value in `.env`:
+
+```text
+TELEGRAM_WEBHOOK_URL=https://crm.qoima.com.kz/api/telegram/webhook/
+```
+
+Register or refresh the Telegram webhook with:
+
+```bash
+docker compose --env-file .env exec -T backend python manage.py set_telegram_webhook
+```

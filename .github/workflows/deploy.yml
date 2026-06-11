@@ -78,5 +78,10 @@ jobs:
              test -f .env && \
              docker compose --env-file .env up -d --build && \
              docker compose --env-file .env exec -T backend python manage.py ensure_superuser && \
+             WEBHOOK_URL=\$(grep -E '^TELEGRAM_WEBHOOK_URL=' .env | tail -n 1 | cut -d= -f2-) && \
+             BOT_TOKEN=\$(grep -E '^TELEGRAM_BOT_TOKEN=' .env | tail -n 1 | cut -d= -f2-) && \
+             if [ -n \"\$WEBHOOK_URL\" ] && [ -n \"\$BOT_TOKEN\" ]; then \
+               docker compose --env-file .env exec -T backend python manage.py set_telegram_webhook \"\$WEBHOOK_URL\"; \
+             fi && \
              docker compose --env-file .env restart backend frontend nginx && \
              docker image prune -f"
