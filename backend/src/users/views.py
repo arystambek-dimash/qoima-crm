@@ -8,7 +8,25 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from core.views import BasePermissionMixin, BaseSerializerMixin
-from src.users.serializers import LoginViaEmailSerializer, UserCreateSerializer, UserSerializer
+from src.telegram_bot.services.telegram import TelegramClient
+from src.users.password_reset import (
+    create_password_reset_code,
+    expire_active_password_reset_codes,
+    reset_password_with_code,
+)
+from src.users.serializers import (
+    LoginViaEmailSerializer,
+    PasswordResetConfirmSerializer,
+    PasswordResetRequestSerializer,
+    UserCreateSerializer,
+    UserSerializer,
+)
+
+
+PASSWORD_RESET_REQUEST_DETAIL = (
+    "Если email существует и Telegram ID привязан, код отправлен в Telegram."
+)
+PASSWORD_RESET_CONFIRM_DETAIL = "Пароль обновлен. Теперь можно войти."
 
 
 class UserManagePermission(permissions.BasePermission):
@@ -47,6 +65,8 @@ class UserViewSet(
 
     serializers = {
         "login_via_email": LoginViaEmailSerializer,
+        "password_reset_request": PasswordResetRequestSerializer,
+        "password_reset_confirm": PasswordResetConfirmSerializer,
         "profile": UserSerializer,
         "list": UserSerializer,
         "create": UserCreateSerializer,
@@ -55,8 +75,10 @@ class UserViewSet(
         "partial_update": UserSerializer,
     }
     permissions = {
-        "login_via_email": [permissions.AllowAny,],
-        "profile": [permissions.IsAuthenticated,],
+        "login_via_email": [permissions.AllowAny],
+        "password_reset_request": [permissions.AllowAny],
+        "password_reset_confirm": [permissions.AllowAny],
+        "profile": [permissions.IsAuthenticated],
         "create": [UserManagePermission],
         "update": [UserManagePermission],
         "partial_update": [UserManagePermission],
@@ -86,7 +108,61 @@ class UserViewSet(
             status=status.HTTP_200_OK,
         )
 
+    @action(detail=False, methods=["post"], url_path="password-reset/request")
+    def password_reset_request(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = (
+            get_user_model()
+            .objects.filter(email__iexact=serializer.validated_data["email"])
+            .first()
+        )
+
+        if user and user.telegram_id:
+            code = create_password_reset_code(user)
+            sent = TelegramClient().send_message(
+                user.telegram_id,
+                self._password_reset_message(code),
+            )
+
+            if not sent:
+                expire_active_password_reset_codes(user)
+
+        return Response(
+            {"detail": PASSWORD_RESET_REQUEST_DETAIL},
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=False, methods=["post"], url_path="password-reset/confirm")
+    def password_reset_confirm(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = (
+            get_user_model()
+            .objects.filter(email__iexact=serializer.validated_data["email"])
+            .first()
+        )
+
+        if not user or not reset_password_with_code(
+            user,
+            serializer.validated_data["code"],
+            serializer.validated_data["password"],
+        ):
+            raise ValidationError({"detail": "Неверный или просроченный код."})
+
+        return Response(
+            {"detail": PASSWORD_RESET_CONFIRM_DETAIL},
+            status=status.HTTP_200_OK,
+        )
+
     @action(detail=False, methods=["get"], url_path="profile")
     def profile(self, request):
         serializer = self.get_serializer(request.user)
         return Response(serializer.data)
+
+    def _password_reset_message(self, code: str) -> str:
+        return (
+            "Qoima CRM\n"
+            f"Код восстановления пароля: {code}\n"
+            "Код действует 10 минут. Если это были не вы, просто проигнорируйте."
+        )

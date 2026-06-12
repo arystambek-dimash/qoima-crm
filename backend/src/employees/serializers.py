@@ -18,7 +18,6 @@ EMPLOYEE_PERMISSION_FIELDS = (
     "employees_can_delete",
     "employees_can_create",
     "employees_can_update",
-    "employees_can_see_salary",
     "wallets_can_create",
     "wallets_can_update",
     "wallets_can_delete",
@@ -56,9 +55,11 @@ class EmployeeSerializer(serializers.ModelSerializer):
             return True
 
         try:
-            return bool(request.user.employee.employees_can_see_salary)
+            employee = request.user.employee
         except ObjectDoesNotExist:
             return False
+
+        return bool(employee.employees_can_create or employee.employees_can_update)
 
 
 class EmployeeUpdateSerializer(serializers.ModelSerializer):

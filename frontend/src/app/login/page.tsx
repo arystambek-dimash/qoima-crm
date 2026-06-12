@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -121,12 +122,12 @@ export default function LoginPage() {
                 />
                 Запомнить меня
               </label>
-              <button
-                type="button"
+              <Link
+                href="/forgot-password"
                 className="text-[13px] text-accent hover:text-accent-ink transition-colors"
               >
                 Забыли пароль?
-              </button>
+              </Link>
             </div>
 
             <Button

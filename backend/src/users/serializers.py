@@ -7,6 +7,19 @@ class LoginViaEmailSerializer(serializers.Serializer):
     password = serializers.CharField()
 
 
+class PasswordResetRequestSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    code = serializers.RegexField(
+        regex=r"^\d{6}$",
+        error_messages={"invalid": "Введите 6-значный код."},
+    )
+    password = serializers.CharField(write_only=True, min_length=6)
+
+
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = get_user_model()

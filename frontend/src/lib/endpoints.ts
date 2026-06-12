@@ -19,6 +19,7 @@ import type {
   OnboardUpdate,
   OnboardTask,
   OnboardTaskCreate,
+  PasswordResetConfirm,
   Spending,
   SpendingAnalytics,
   SpendingCreate,
@@ -50,6 +51,14 @@ export const auth = {
       .post<{ access: string }>("/users/token/refresh/", { refresh })
       .then((r) => r.data),
   profile: () => api.get<User>("/users/profile/").then((r) => r.data),
+  requestPasswordReset: (email: string) =>
+    api
+      .post<{ detail: string }>("/users/password-reset/request/", { email })
+      .then((r) => r.data),
+  confirmPasswordReset: (payload: PasswordResetConfirm) =>
+    api
+      .post<{ detail: string }>("/users/password-reset/confirm/", payload)
+      .then((r) => r.data),
 };
 
 /* ---------------- Users (admin-side) ---------------- */

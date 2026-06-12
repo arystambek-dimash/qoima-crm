@@ -214,6 +214,12 @@ export interface UserCreate {
 
 export type UserUpdate = Partial<Omit<UserCreate, "password">>;
 
+export interface PasswordResetConfirm {
+  email: string;
+  code: string;
+  password: string;
+}
+
 /* -------------------- Incomes -------------------- */
 
 export interface Income {
