@@ -13,8 +13,8 @@ import { Field, Input, Textarea } from "@/components/ui/input";
 import { onboards } from "@/lib/endpoints";
 import { asApiError } from "@/lib/api";
 import { useIsSuperuser, useRole } from "@/lib/permissions";
-import { cn } from "@/lib/utils";
-import { Info, Loader2, Plus } from "lucide-react";
+import { cn, formatBytes } from "@/lib/utils";
+import { Info, Loader2, Paperclip, Plus, X } from "lucide-react";
 import type {
   OnboardTaskCreate,
   TaskCategory,
@@ -68,6 +68,7 @@ export function AddTaskDialog({
     new Date().toISOString().slice(0, 10)
   );
   const [dateEnd, setDateEnd] = useState("");
+  const [files, setFiles] = useState<File[]>([]);
 
   // Category picker: existing or freshly-typed
   const initialMode: CategoryMode = categories.length === 0 ? "new" : "existing";
@@ -77,10 +78,11 @@ export function AddTaskDialog({
   );
   const [newCategoryName, setNewCategoryName] = useState("");
 
-  // is_active flips with status:
+  // is_active still flips with status (backend keeps the legacy boolean in
+  // sync, but old code paths read it directly):
   //   todo / in_progress / in_review → true (still active)
-  //   done                            → false
-  const isActive = defaultStatus !== "done";
+  //   done / cancelled               → false
+  const isActive = defaultStatus !== "done" && defaultStatus !== "cancelled";
 
   function reset() {
     setName("");
@@ -88,6 +90,7 @@ export function AddTaskDialog({
     setDescription("");
     setDateStart(new Date().toISOString().slice(0, 10));
     setDateEnd("");
+    setFiles([]);
     setCategoryMode(categories.length === 0 ? "new" : "existing");
     setCategoryId(categories[0]?.id ?? "");
     setNewCategoryName("");
@@ -108,23 +111,44 @@ export function AddTaskDialog({
         resolvedCategoryId = categoryId;
       }
 
-      // 2. Create the task.
+      // 2. Create the task. Description is optional — omit when empty.
+      const trimmedDescription = description.trim();
       const payload: OnboardTaskCreate = {
         category: resolvedCategoryId,
         name: name.trim(),
         type: type.trim(),
-        description: description.trim(),
         date_start: dateStart,
         date_end: dateEnd,
         is_active: isActive,
       };
-      return onboards.createTask(payload);
+      if (trimmedDescription) payload.description = trimmedDescription;
+      if (defaultStatus) payload.status = defaultStatus;
+
+      const task = await onboards.createTask(payload);
+
+      // 3. If files were attached, upload them to the new task.
+      if (files.length > 0) {
+        const form = new FormData();
+        for (const f of files) form.append("files", f);
+        try {
+          await onboards.uploadTaskAttachment(task.id, form);
+        } catch (err) {
+          // Task created but attachment failed — surface, don't throw, so the
+          // dialog still closes and the user sees the task.
+          toast.error(
+            `Задача создана, но вложение не загрузилось: ${asApiError(err).message}`
+          );
+        }
+      }
+      return task;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["onboard"] });
       qc.invalidateQueries({ queryKey: ["onboards-for-deal"] });
       qc.invalidateQueries({ queryKey: ["onboards"] });
-      toast.success("Задача создана.");
+      toast.success(
+        needsApproval ? "Задача отправлена на одобрение." : "Задача создана."
+      );
       onOpenChange(false);
       reset();
     },
@@ -253,7 +277,7 @@ export function AddTaskDialog({
             />
           </Field>
 
-          <Field label="Описание">
+          <Field label="Описание (необязательно)">
             <Textarea
               placeholder="Что нужно сделать?"
               rows={3}
@@ -261,6 +285,8 @@ export function AddTaskDialog({
               onChange={(e) => setDescription(e.target.value)}
             />
           </Field>
+
+          <AttachmentPicker files={files} onChange={setFiles} />
 
           <div className="flex items-center justify-end gap-2 pt-3 border-t border-hairline">
             <Button
@@ -322,5 +348,75 @@ function ModeChip({
     >
       {label}
     </button>
+  );
+}
+
+function AttachmentPicker({
+  files,
+  onChange,
+}: {
+  files: File[];
+  onChange: (next: File[]) => void;
+}) {
+  function onPick(e: React.ChangeEvent<HTMLInputElement>) {
+    const picked = Array.from(e.target.files ?? []);
+    if (picked.length === 0) return;
+    onChange([...files, ...picked]);
+    // Reset the input so re-picking the same file re-fires onChange.
+    e.target.value = "";
+  }
+
+  function remove(idx: number) {
+    onChange(files.filter((_, i) => i !== idx));
+  }
+
+  return (
+    <div>
+      <label className="block text-[12px] font-medium text-ink-2 mb-1.5">
+        Вложения (необязательно)
+      </label>
+
+      {files.length > 0 && (
+        <ul className="space-y-1.5 mb-2">
+          {files.map((f, i) => (
+            <li
+              key={`${f.name}-${i}`}
+              className="flex items-center gap-2 px-2 h-8 rounded-md bg-surface-2 border border-hairline"
+            >
+              <Paperclip className="h-3 w-3 text-ink-3 shrink-0" />
+              <span className="flex-1 text-[12px] text-ink-2 truncate">
+                {f.name}
+              </span>
+              <span className="text-[11px] text-ink-4 tabular-nums">
+                {formatBytes(f.size)}
+              </span>
+              <button
+                type="button"
+                onClick={() => remove(i)}
+                className="h-5 w-5 grid place-items-center rounded text-ink-4 hover:text-danger hover:bg-tag-red-bg/30"
+                aria-label="Удалить из списка"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <label className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-dashed border-hairline-strong text-[13px] text-ink-3 hover:text-ink hover:bg-surface-2 cursor-pointer transition-colors">
+        <Paperclip className="h-3.5 w-3.5" />
+        Добавить файл
+        <input
+          type="file"
+          multiple
+          onChange={onPick}
+          className="sr-only"
+        />
+      </label>
+      <p className="mt-1 text-[11px] text-ink-4">
+        Файлы загрузятся после создания задачи. Аудио-файлы будут помечены как
+        голосовое сообщение.
+      </p>
+    </div>
   );
 }

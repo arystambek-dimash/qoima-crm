@@ -121,6 +121,37 @@ export function resolveApprovalStatus(
   return t.approval_status ?? null;
 }
 
+/**
+ * Combine `approval_status` + `approval_action` into a single human-friendly
+ * descriptor. Pending tasks can either be a create-request or a cancel-request,
+ * and the two are very different visually.
+ */
+export function approvalChip(
+  t: OnboardTask
+): { label: string; short: string; tone: "yellow" | "orange" | "green" | "red" | "gray" } | null {
+  const status = t.approval_status;
+  if (!status) return null;
+  if (status === "pending") {
+    if (t.approval_action === "cancel") {
+      return {
+        label: "Ожидает отмены",
+        short: "отмена ожидается",
+        tone: "orange",
+      };
+    }
+    return {
+      label: APPROVAL_LABEL.pending,
+      short: APPROVAL_SHORT.pending,
+      tone: APPROVAL_TONE.pending,
+    };
+  }
+  return {
+    label: APPROVAL_LABEL[status],
+    short: APPROVAL_SHORT[status],
+    tone: APPROVAL_TONE[status],
+  };
+}
+
 /* -------------------- Audit log -------------------- */
 
 export const AUDIT_LABEL: Record<string, string> = {

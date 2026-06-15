@@ -61,6 +61,22 @@ export function pluralOrders(n: number): string {
   return plural(n, "активный заказ", "активных заказа", "активных заказов");
 }
 
+const BYTE_UNITS = ["Б", "КБ", "МБ", "ГБ"];
+
+/** Human-friendly byte size: 1024 → "1 КБ". */
+export function formatBytes(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value) || value < 0) return "—";
+  if (value === 0) return "0 Б";
+  let n = value;
+  let i = 0;
+  while (n >= 1024 && i < BYTE_UNITS.length - 1) {
+    n /= 1024;
+    i += 1;
+  }
+  const formatted = n >= 10 || i === 0 ? Math.round(n) : Math.round(n * 10) / 10;
+  return `${formatted} ${BYTE_UNITS[i]}`;
+}
+
 export function initials(name: string | null | undefined) {
   if (!name) return "??";
   return name

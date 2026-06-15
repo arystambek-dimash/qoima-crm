@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -14,25 +14,27 @@ import { Avatar } from "@/components/ui/avatar";
 import { asApiError } from "@/lib/api";
 import { onboards, users } from "@/lib/endpoints";
 import {
-  APPROVAL_LABEL,
-  APPROVAL_TONE,
   PRIORITY_LABEL,
   PRIORITY_TONE,
+  STATUS_TONE,
+  TASK_COLUMNS,
+  approvalChip,
   auditLabel,
-  resolveApprovalStatus,
   resolvePriority,
+  resolveStatus,
   ticketKey,
   typeMeta,
 } from "@/lib/task-helpers";
-import { formatDate, cn } from "@/lib/utils";
+import { formatBytes, formatDate, cn } from "@/lib/utils";
 import {
   CalendarDays,
   Check,
-  CheckSquare,
   ClipboardCheck,
+  Download,
   History,
+  Mic,
+  Paperclip,
   Plus,
-  Square,
   Tag,
   Trash2,
   User as UserIcon,
@@ -41,10 +43,12 @@ import {
 } from "lucide-react";
 import type {
   OnboardTask,
+  TaskAttachment,
   TaskAuditAction,
   TaskAuditLog,
   TaskCategory,
   TaskPerformance,
+  TaskStatus,
 } from "@/lib/types";
 
 const TASK_TYPES = [
@@ -102,41 +106,57 @@ function TaskDetailInner({
   const [categoryId, setCategoryId] = useState<number>(
     task?.category ?? categories[0]?.id ?? 0
   );
-  const [isActive, setIsActive] = useState(task?.is_active ?? true);
+  const [status, setStatus] = useState<TaskStatus>(
+    task ? resolveStatus(task) : "todo"
+  );
+
+  function invalidateTask() {
+    qc.invalidateQueries({ queryKey: ["onboard", onboardId] });
+    qc.invalidateQueries({ queryKey: ["onboards-for-deal"] });
+    qc.invalidateQueries({ queryKey: ["onboards"] });
+    qc.invalidateQueries({ queryKey: ["onboards", "tasks", "mine"] });
+  }
 
   const update = useMutation({
     mutationFn: () => {
       if (!task) throw new Error("no task");
+      const trimmedDescription = description.trim();
       return onboards.updateTask(task.id, {
         name: name.trim(),
-        description: description.trim(),
+        description: trimmedDescription,
         type: type.trim(),
         date_start: dateStart,
         date_end: dateEnd,
         category: categoryId,
-        is_active: isActive,
+        status,
+        is_active: status !== "done" && status !== "cancelled",
       });
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["onboard", onboardId] });
-      qc.invalidateQueries({ queryKey: ["onboards-for-deal"] });
-      qc.invalidateQueries({ queryKey: ["onboards"] });
-      toast.success("Задача обновлена.");
+    onSuccess: (updated) => {
+      invalidateTask();
+      if (updated?.approval_status === "pending" && updated?.approval_action === "cancel") {
+        toast.success("Запрос на отмену отправлен администратору.");
+      } else {
+        toast.success("Задача обновлена.");
+      }
       onOpenChange(false);
     },
     onError: (err) => toast.error(asApiError(err).message),
   });
 
+  // Hard delete (or 202 pending-cancel for collaborators) — the API returns
+  // the same shape either way, the backend just chooses based on the actor's
+  // role and approval rules.
   const remove = useMutation({
     mutationFn: () => {
       if (!task) throw new Error("no task");
       return onboards.removeTask(task.id);
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["onboard", onboardId] });
-      qc.invalidateQueries({ queryKey: ["onboards-for-deal"] });
-      qc.invalidateQueries({ queryKey: ["onboards"] });
-      toast.success("Задача удалена.");
+      invalidateTask();
+      toast.success(
+        "Запрос на удаление отправлен — задача будет удалена после одобрения."
+      );
       onOpenChange(false);
     },
     onError: (err) => toast.error(asApiError(err).message),
@@ -147,6 +167,9 @@ function TaskDetailInner({
   const tm = typeMeta(type);
   const priority = resolvePriority(task);
   const currentCat = categories.find((c) => c.id === categoryId);
+  const chip = approvalChip(task);
+  const isAwaitingCancel =
+    task.approval_status === "pending" && task.approval_action === "cancel";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -185,16 +208,14 @@ function TaskDetailInner({
             <Badge tone={PRIORITY_TONE[priority]}>
               {PRIORITY_LABEL[priority]}
             </Badge>
-            {!isActive && <Badge tone="green">выполнено</Badge>}
-            {(() => {
-              const approval = resolveApprovalStatus(task);
-              if (!approval) return null;
-              return (
-                <Badge tone={APPROVAL_TONE[approval]} dot>
-                  {APPROVAL_LABEL[approval]}
-                </Badge>
-              );
-            })()}
+            <Badge tone={STATUS_TONE[status]} dot>
+              {TASK_COLUMNS.find((c) => c.key === status)?.label ?? status}
+            </Badge>
+            {chip && (
+              <Badge tone={chip.tone} dot>
+                {chip.label}
+              </Badge>
+            )}
           </div>
         </div>
 
@@ -222,38 +243,38 @@ function TaskDetailInner({
               )}
             </section>
 
-            {!readOnly && (
-              <section>
-                <button
-                  type="button"
-                  onClick={() => setIsActive((v) => !v)}
-                  className={cn(
-                    "inline-flex items-center gap-2 px-3 h-9 rounded-md border text-[13px] transition-colors",
-                    isActive
-                      ? "border-hairline-strong text-ink-2 hover:bg-surface-2"
-                      : "border-success/30 bg-tag-green-bg/40 text-tag-green-fg"
-                  )}
-                >
-                  {isActive ? (
-                    <>
-                      <Square className="h-4 w-4" />
-                      Отметить выполненной
-                    </>
-                  ) : (
-                    <>
-                      <CheckSquare className="h-4 w-4" />
-                      Выполнено
-                    </>
-                  )}
-                </button>
-              </section>
-            )}
+            <AttachmentsSection
+              taskId={task.id}
+              attachments={task.attachments ?? []}
+              readOnly={readOnly}
+              onChanged={invalidateTask}
+            />
 
             <AuditLogList logs={task.audit_logs ?? []} />
           </div>
 
           {/* Right — meta */}
           <aside className="border-l border-hairline px-5 py-5 space-y-4 bg-surface/40">
+            <MetaItem icon={Check} label="Статус">
+              {readOnly ? (
+                <Badge tone={STATUS_TONE[status]} dot>
+                  {TASK_COLUMNS.find((c) => c.key === status)?.label ?? status}
+                </Badge>
+              ) : (
+                <select
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value as TaskStatus)}
+                  className="h-8 w-full bg-canvas border border-hairline-strong rounded-md px-2 text-[13px] text-ink hover:border-ink-5 cursor-pointer outline-none focus:border-accent"
+                >
+                  {TASK_COLUMNS.map((c) => (
+                    <option key={c.key} value={c.key}>
+                      {c.label}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </MetaItem>
+
             <MetaItem icon={Tag} label="Категория">
               {readOnly ? (
                 <span className="text-[13px] text-ink-2">
@@ -342,13 +363,17 @@ function TaskDetailInner({
             <button
               type="button"
               onClick={() => {
-                if (confirm(`Удалить задачу «${task.name}»?`)) remove.mutate();
+                const prompt = isAwaitingCancel
+                  ? "Запрос на отмену уже ожидает решения. Отправить повторно?"
+                  : "Запрос на удаление уйдёт администратору. Продолжить?";
+                if (confirm(prompt)) remove.mutate();
               }}
               disabled={remove.isPending}
               className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded text-[13px] text-ink-3 hover:text-danger hover:bg-tag-red-bg/30 transition-colors"
+              title="Удаление подтверждается администратором в Telegram"
             >
               <Trash2 className="h-3.5 w-3.5" />
-              Удалить задачу
+              {isAwaitingCancel ? "Повторить запрос" : "Запросить удаление"}
             </button>
           ) : (
             <span />
@@ -606,21 +631,29 @@ function AuditLogList({ logs }: { logs: TaskAuditLog[] }) {
 const AUDIT_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
   created: Plus,
   updated: Tag,
+  approval_requested: ClipboardCheck,
+  cancellation_requested: XCircle,
   approved: ClipboardCheck,
   rejected: XCircle,
   cancelled: X,
   assigned: UserIcon,
   unassigned: UserIcon,
+  attachment_added: Paperclip,
+  attachment_removed: Paperclip,
 };
 
 const AUDIT_COLOR: Record<string, string> = {
   created: "text-tag-blue-fg bg-tag-blue-bg",
   updated: "text-ink-3 bg-surface-2",
+  approval_requested: "text-tag-yellow-fg bg-tag-yellow-bg",
+  cancellation_requested: "text-tag-orange-fg bg-tag-orange-bg",
   approved: "text-tag-green-fg bg-tag-green-bg",
   rejected: "text-tag-red-fg bg-tag-red-bg",
   cancelled: "text-ink-3 bg-surface-2",
   assigned: "text-tag-purple-fg bg-tag-purple-bg",
   unassigned: "text-ink-3 bg-surface-2",
+  attachment_added: "text-tag-blue-fg bg-tag-blue-bg",
+  attachment_removed: "text-ink-3 bg-surface-2",
 };
 
 function AuditLogItem({ log }: { log: TaskAuditLog }) {
@@ -650,9 +683,9 @@ function AuditLogItem({ log }: { log: TaskAuditLog }) {
         <span className="text-ink font-medium">{auditLabel(log.action as TaskAuditAction)}</span>
         <span className="text-ink-3"> · {who}</span>
       </div>
-      {log.message && (
+      {(log.message || log.description) && (
         <p className="text-[12px] text-ink-2 mt-0.5 whitespace-pre-wrap">
-          {log.message}
+          {log.message ?? log.description}
         </p>
       )}
       <time className="block text-[11px] text-ink-4 tabular-nums mt-0.5">
@@ -672,4 +705,173 @@ function formatAuditTime(iso: string): string {
     hour: "2-digit",
     minute: "2-digit",
   }).format(d);
+}
+
+/* ----- Attachments ----- */
+
+function AttachmentsSection({
+  taskId,
+  attachments,
+  readOnly,
+  onChanged,
+}: {
+  taskId: number;
+  attachments: TaskAttachment[];
+  readOnly?: boolean;
+  onChanged: () => void;
+}) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  const upload = useMutation({
+    mutationFn: async (files: File[]) => {
+      const form = new FormData();
+      for (const f of files) form.append("files", f);
+      return onboards.uploadTaskAttachment(taskId, form);
+    },
+    onSuccess: () => {
+      onChanged();
+      toast.success("Файлы загружены.");
+    },
+    onError: (err) => toast.error(asApiError(err).message),
+  });
+
+  const remove = useMutation({
+    mutationFn: (attachmentId: number) =>
+      onboards.removeTaskAttachment(taskId, attachmentId),
+    onSuccess: () => {
+      onChanged();
+      toast.success("Вложение удалено.");
+    },
+    onError: (err) => toast.error(asApiError(err).message),
+  });
+
+  function onPick(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    if (files.length === 0) return;
+    upload.mutate(files);
+    e.target.value = "";
+  }
+
+  if (readOnly && attachments.length === 0) return null;
+
+  return (
+    <section>
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-1.5 text-[12px] font-medium text-ink-2">
+          <Paperclip className="h-3.5 w-3.5" />
+          Вложения
+          {attachments.length > 0 && (
+            <span className="text-ink-4 tabular-nums">
+              · {attachments.length}
+            </span>
+          )}
+        </div>
+        {!readOnly && (
+          <>
+            <button
+              type="button"
+              onClick={() => inputRef.current?.click()}
+              disabled={upload.isPending}
+              className="inline-flex items-center gap-1.5 h-7 px-2 rounded text-[12px] text-ink-3 hover:text-ink hover:bg-surface-2 transition-colors disabled:opacity-50"
+            >
+              <Plus className="h-3 w-3" />
+              {upload.isPending ? "Загружаем…" : "Добавить"}
+            </button>
+            <input
+              ref={inputRef}
+              type="file"
+              multiple
+              onChange={onPick}
+              className="sr-only"
+            />
+          </>
+        )}
+      </div>
+
+      {attachments.length === 0 ? (
+        <p className="text-[12px] text-ink-4">Файлов и голосовых нет.</p>
+      ) : (
+        <ul className="space-y-1.5">
+          {attachments.map((a) => (
+            <AttachmentItem
+              key={a.id}
+              attachment={a}
+              readOnly={readOnly}
+              onRemove={() => {
+                if (confirm(`Удалить вложение «${a.file_name}»?`)) {
+                  remove.mutate(a.id);
+                }
+              }}
+              busy={remove.isPending}
+            />
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function AttachmentItem({
+  attachment: a,
+  readOnly,
+  onRemove,
+  busy,
+}: {
+  attachment: TaskAttachment;
+  readOnly?: boolean;
+  onRemove: () => void;
+  busy?: boolean;
+}) {
+  const isVoice = a.kind === "voice";
+  const Icon = isVoice ? Mic : Paperclip;
+
+  return (
+    <li className="flex items-center gap-2 px-2 h-9 rounded-md bg-canvas border border-hairline group">
+      <span
+        className={cn(
+          "h-6 w-6 grid place-items-center rounded-md shrink-0",
+          isVoice
+            ? "text-tag-purple-fg bg-tag-purple-bg"
+            : "text-ink-3 bg-surface-2"
+        )}
+      >
+        <Icon className="h-3 w-3" />
+      </span>
+      <div className="flex-1 min-w-0">
+        <a
+          href={a.file_url}
+          target="_blank"
+          rel="noreferrer"
+          className="block text-[13px] text-ink hover:text-accent truncate"
+          title={a.file_name}
+        >
+          {a.file_name}
+        </a>
+        <span className="block text-[11px] text-ink-4 tabular-nums">
+          {formatBytes(a.size)}
+          {isVoice ? " · голосовое" : ""}
+        </span>
+      </div>
+      <a
+        href={a.file_url}
+        target="_blank"
+        rel="noreferrer"
+        className="h-7 w-7 grid place-items-center rounded text-ink-3 hover:text-accent transition-colors"
+        title="Скачать"
+      >
+        <Download className="h-3.5 w-3.5" />
+      </a>
+      {!readOnly && (
+        <button
+          type="button"
+          onClick={onRemove}
+          disabled={busy}
+          className="h-7 w-7 grid place-items-center rounded text-ink-4 hover:text-danger hover:bg-tag-red-bg/30 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-30"
+          title="Удалить"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      )}
+    </li>
+  );
 }

@@ -29,12 +29,11 @@ import { formatCurrency, formatDate, cn, plural } from "@/lib/utils";
 import { dealClientName, paymentTypeLabel, stageLabel } from "@/lib/deal-labels";
 import { userDisplayName, userIdOf } from "@/lib/user-helpers";
 import {
-  APPROVAL_SHORT,
-  APPROVAL_TONE,
   PRIORITY_LABEL,
   PRIORITY_TONE,
   STATUS_TONE,
   TASK_COLUMNS,
+  approvalChip,
   resolveApprovalStatus,
   resolvePriority,
   resolveStatus,
@@ -1168,7 +1167,7 @@ function TasksList({
             const tm = typeMeta(t.type);
             const status = resolveStatus(t);
             const priority = resolvePriority(t);
-            const approval = resolveApprovalStatus(t);
+            const chip = approvalChip(t);
             const isDone = status === "done";
             return (
               <TR key={t.id} className="cursor-pointer">
@@ -1200,9 +1199,9 @@ function TasksList({
                   </Badge>
                 </TD>
                 <TD>
-                  {approval ? (
-                    <Badge tone={APPROVAL_TONE[approval]} dot>
-                      {APPROVAL_SHORT[approval]}
+                  {chip ? (
+                    <Badge tone={chip.tone} dot>
+                      {chip.short}
                     </Badge>
                   ) : (
                     <span className="text-ink-4 text-[12px]">—</span>

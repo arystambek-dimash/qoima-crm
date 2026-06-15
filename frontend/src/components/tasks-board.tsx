@@ -44,11 +44,9 @@ import { cn, formatDate } from "@/lib/utils";
 import { asApiError } from "@/lib/api";
 import { onboards } from "@/lib/endpoints";
 import {
-  APPROVAL_SHORT,
-  APPROVAL_TONE,
   PRIORITY_LABEL,
   PRIORITY_TONE,
-  resolveApprovalStatus,
+  approvalChip,
   resolvePriority,
   ticketKey,
   typeMeta,
@@ -570,10 +568,14 @@ function TaskCardVisual({ t }: { t: OnboardTask }) {
   const tm = typeMeta(t.type);
   const priority = resolvePriority(t);
   const isDone = !t.is_active;
-  const approval = resolveApprovalStatus(t);
-  const isPending = approval === "pending";
+  const chip = approvalChip(t);
+  const approval = t.approval_status;
+  const isPendingCreate =
+    approval === "pending" && t.approval_action !== "cancel";
+  const isPendingCancel =
+    approval === "pending" && t.approval_action === "cancel";
   const isRejected = approval === "rejected";
-  const isCancelled = approval === "cancelled";
+  const isCancelled = approval === "cancelled" || t.status === "cancelled";
 
   // Trello-style: chunky colored labels at the top of the card.
   const labels: { color: string; tooltip: string }[] = [
@@ -589,7 +591,8 @@ function TaskCardVisual({ t }: { t: OnboardTask }) {
       className={cn(
         "group relative bg-canvas border border-hairline rounded-md p-2.5 hover:border-hairline-strong hover:shadow-card transition-all",
         isDone && "opacity-70",
-        isPending && "border-warn/40 ring-1 ring-warn/20",
+        isPendingCreate && "border-warn/40 ring-1 ring-warn/20",
+        isPendingCancel && "border-orange-400/40 ring-1 ring-orange-300/20",
         isRejected && "border-danger/40 ring-1 ring-danger/20",
         isCancelled && "opacity-60"
       )}
@@ -612,10 +615,10 @@ function TaskCardVisual({ t }: { t: OnboardTask }) {
         )}
       </div>
 
-      {approval && approval !== "approved" && (
+      {chip && chip.short !== "одобрено" && (
         <div className="mb-2">
-          <Badge tone={APPROVAL_TONE[approval]} className="text-[11px]">
-            {APPROVAL_SHORT[approval]}
+          <Badge tone={chip.tone} className="text-[11px]">
+            {chip.short}
           </Badge>
         </div>
       )}
