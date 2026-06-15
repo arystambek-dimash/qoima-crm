@@ -11,6 +11,7 @@ export const TASK_COLUMNS: { key: TaskStatus; label: string }[] = [
   { key: "in_progress", label: "В работе" },
   { key: "in_review", label: "На проверке" },
   { key: "done", label: "Готово" },
+  { key: "cancelled", label: "Отменено" },
 ];
 
 export function resolveStatus(t: OnboardTask): TaskStatus {
@@ -31,6 +32,7 @@ export const STATUS_TONE: Record<
   in_progress: "blue",
   in_review: "purple",
   done: "green",
+  cancelled: "gray",
 };
 
 export const STATUS_DOT: Record<TaskStatus, string> = {
@@ -38,6 +40,7 @@ export const STATUS_DOT: Record<TaskStatus, string> = {
   in_progress: "#2383e2",
   in_review: "#7c5cc4",
   done: "#3d9c47",
+  cancelled: "#787774",
 };
 
 export const PRIORITY_LABEL: Record<TaskPriority, string> = {
@@ -123,11 +126,15 @@ export function resolveApprovalStatus(
 export const AUDIT_LABEL: Record<string, string> = {
   created: "Создана",
   updated: "Обновлена",
+  approval_requested: "Запрошено одобрение",
+  cancellation_requested: "Запрошена отмена",
   approved: "Одобрена",
   rejected: "Отклонена",
   cancelled: "Отменена",
   assigned: "Назначен исполнитель",
   unassigned: "Снят исполнитель",
+  attachment_added: "Добавлено вложение",
+  attachment_removed: "Удалено вложение",
 };
 
 export function auditLabel(action: TaskAuditAction): string {

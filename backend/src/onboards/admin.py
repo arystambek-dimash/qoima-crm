@@ -1,6 +1,13 @@
 from django.contrib import admin
 
-from src.onboards.models import Onboard, Task, TaskAuditLog, TaskCategory, TaskPerformance
+from src.onboards.models import (
+    Onboard,
+    Task,
+    TaskAttachment,
+    TaskAuditLog,
+    TaskCategory,
+    TaskPerformance,
+)
 
 
 @admin.register(Onboard)
@@ -22,12 +29,14 @@ class TaskAdmin(admin.ModelAdmin):
         "id",
         "name",
         "category",
+        "status",
         "approval_status",
+        "approval_action",
         "created_by",
         "created_at",
         "is_active",
     )
-    list_filter = ("approval_status", "created_via", "is_active")
+    list_filter = ("status", "approval_status", "approval_action", "created_via", "is_active")
     search_fields = ("name", "description", "created_by__username")
     readonly_fields = ("created_at", "updated_at")
 
@@ -43,4 +52,12 @@ class TaskAuditLogAdmin(admin.ModelAdmin):
     list_display = ("created_at", "task_id_snapshot", "action", "source", "actor")
     list_filter = ("action", "source")
     search_fields = ("description", "actor__username", "task__name")
+    readonly_fields = ("created_at",)
+
+
+@admin.register(TaskAttachment)
+class TaskAttachmentAdmin(admin.ModelAdmin):
+    list_display = ("id", "task", "file_name", "kind", "size", "uploaded_by", "created_at")
+    list_filter = ("kind", "content_type")
+    search_fields = ("file_name", "task__name", "uploaded_by__username")
     readonly_fields = ("created_at",)

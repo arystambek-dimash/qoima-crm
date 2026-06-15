@@ -5,6 +5,7 @@ from core.permissions import is_scoped_collaborator
 from src.onboards.models import (
     Onboard,
     Task,
+    TaskAttachment,
     TaskAuditLog,
     TaskCategory,
     TaskPerformance
@@ -55,6 +56,36 @@ class TaskPerformanceSerializer(serializers.ModelSerializer):
         )
 
 
+class TaskAttachmentSerializer(serializers.ModelSerializer):
+    uploaded_by_detail = UserSerializer(source="uploaded_by", read_only=True)
+    file_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = TaskAttachment
+        fields = (
+            'id',
+            'task',
+            'file',
+            'file_url',
+            'file_name',
+            'content_type',
+            'size',
+            'kind',
+            'uploaded_by',
+            'uploaded_by_detail',
+            'created_at',
+        )
+        read_only_fields = fields
+
+    def get_file_url(self, obj):
+        if not obj.file:
+            return ""
+
+        request = self.context.get("request")
+        url = obj.file.url
+        return request.build_absolute_uri(url) if request else url
+
+
 class TaskSerializer(serializers.ModelSerializer):
     performance = TaskPerformanceSerializer(
         source="taskperformance_set",
@@ -62,7 +93,12 @@ class TaskSerializer(serializers.ModelSerializer):
         read_only=True,
     )
     audit_logs = TaskAuditLogSerializer(many=True, read_only=True)
+    attachments = TaskAttachmentSerializer(many=True, read_only=True)
     created_by_detail = UserSerializer(source="created_by", read_only=True)
+    approval_requested_by_detail = UserSerializer(
+        source="approval_requested_by",
+        read_only=True,
+    )
     reviewed_by_detail = UserSerializer(source="reviewed_by", read_only=True)
     cancelled_by_detail = UserSerializer(source="cancelled_by", read_only=True)
     is_cancelled = serializers.BooleanField(read_only=True)
@@ -73,6 +109,7 @@ class TaskSerializer(serializers.ModelSerializer):
             'id',
             'name',
             'type',
+            'status',
             'is_active',
             'description',
             'date_start',
@@ -83,6 +120,10 @@ class TaskSerializer(serializers.ModelSerializer):
             'created_by_detail',
             'created_via',
             'approval_status',
+            'approval_action',
+            'approval_requested_by',
+            'approval_requested_by_detail',
+            'approval_requested_at',
             'reviewed_by',
             'reviewed_by_detail',
             'reviewed_at',
@@ -94,12 +135,17 @@ class TaskSerializer(serializers.ModelSerializer):
             'created_at',
             'updated_at',
             'audit_logs',
+            'attachments',
         )
         read_only_fields = (
             'created_by',
             'created_by_detail',
             'created_via',
             'approval_status',
+            'approval_action',
+            'approval_requested_by',
+            'approval_requested_by_detail',
+            'approval_requested_at',
             'reviewed_by',
             'reviewed_by_detail',
             'reviewed_at',
@@ -111,6 +157,7 @@ class TaskSerializer(serializers.ModelSerializer):
             'created_at',
             'updated_at',
             'audit_logs',
+            'attachments',
         )
 
     def validate(self, attrs):

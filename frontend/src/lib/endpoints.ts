@@ -24,6 +24,7 @@ import type {
   SpendingAnalytics,
   SpendingCreate,
   SpendingFilters,
+  TaskAttachment,
   TaskCategory,
   TaskCategoryCreate,
   User,
@@ -217,6 +218,20 @@ export const onboards = {
       .then((r) => r.data),
   removeTask: (id: number) =>
     api.delete<void>(`/onboards/tasks/${id}/`).then((r) => r.data),
+  uploadTaskAttachment: (taskId: number, formData: FormData) =>
+    api
+      .post<TaskAttachment | TaskAttachment[]>(
+        `/onboards/tasks/${taskId}/attachments/`,
+        formData,
+        {
+          headers: { "Content-Type": "multipart/form-data" },
+        }
+      )
+      .then((r) => r.data),
+  removeTaskAttachment: (taskId: number, attachmentId: number) =>
+    api
+      .delete<void>(`/onboards/tasks/${taskId}/attachments/${attachmentId}/`)
+      .then((r) => r.data),
 
   /* TaskPerformance — assignees on a task */
   assign: (taskId: number, userId: number) =>

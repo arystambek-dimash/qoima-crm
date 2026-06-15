@@ -19,11 +19,22 @@ class TaskCategory(models.Model):
 
 
 class Task(models.Model):
+    class Status(models.TextChoices):
+        TODO = "todo", "To do"
+        IN_PROGRESS = "in_progress", "In progress"
+        IN_REVIEW = "in_review", "In review"
+        DONE = "done", "Done"
+        CANCELLED = "cancelled", "Cancelled"
+
     class ApprovalStatus(models.TextChoices):
         PENDING = "pending", "Pending"
         APPROVED = "approved", "Approved"
         REJECTED = "rejected", "Rejected"
         CANCELLED = "cancelled", "Cancelled"
+
+    class ApprovalAction(models.TextChoices):
+        CREATE = "create", "Create"
+        CANCEL = "cancel", "Cancel"
 
     class CreatedVia(models.TextChoices):
         API = "api", "API"
@@ -33,8 +44,13 @@ class Task(models.Model):
     category = models.ForeignKey(TaskCategory, on_delete=models.CASCADE)
     name = models.CharField(max_length=100)
     type = models.CharField(max_length=100)
+    status = models.CharField(
+        max_length=16,
+        choices=Status.choices,
+        default=Status.TODO,
+    )
     is_active = models.BooleanField(default=True)
-    description = models.TextField()
+    description = models.TextField(blank=True, default="")
     date_start = models.DateField()
     date_end = models.DateField()
     created_by = models.ForeignKey(
@@ -54,6 +70,20 @@ class Task(models.Model):
         choices=ApprovalStatus.choices,
         default=ApprovalStatus.APPROVED,
     )
+    approval_action = models.CharField(
+        max_length=16,
+        choices=ApprovalAction.choices,
+        blank=True,
+        default="",
+    )
+    approval_requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="requested_task_approvals",
+    )
+    approval_requested_at = models.DateTimeField(null=True, blank=True)
     reviewed_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -89,11 +119,14 @@ class TaskAuditLog(models.Model):
         CREATED = "created", "Created"
         UPDATED = "updated", "Updated"
         APPROVAL_REQUESTED = "approval_requested", "Approval requested"
+        CANCELLATION_REQUESTED = "cancellation_requested", "Cancellation requested"
         APPROVED = "approved", "Approved"
         REJECTED = "rejected", "Rejected"
         CANCELLED = "cancelled", "Cancelled"
         ASSIGNED = "assigned", "Assigned"
         UNASSIGNED = "unassigned", "Unassigned"
+        ATTACHMENT_ADDED = "attachment_added", "Attachment added"
+        ATTACHMENT_REMOVED = "attachment_removed", "Attachment removed"
 
     task = models.ForeignKey(
         Task,
@@ -128,3 +161,35 @@ class TaskAuditLog(models.Model):
             self.task_id_snapshot = self.task_id
 
         super().save(*args, **kwargs)
+
+
+class TaskAttachment(models.Model):
+    class Kind(models.TextChoices):
+        FILE = "file", "File"
+        VOICE = "voice", "Voice"
+
+    task = models.ForeignKey(
+        Task,
+        on_delete=models.CASCADE,
+        related_name="attachments",
+    )
+    file = models.FileField(upload_to="task_attachments/%Y/%m/%d/")
+    file_name = models.CharField(max_length=255)
+    content_type = models.CharField(max_length=120, blank=True, default="")
+    size = models.PositiveBigIntegerField(default=0)
+    kind = models.CharField(
+        max_length=16,
+        choices=Kind.choices,
+        default=Kind.FILE,
+    )
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="task_attachments",
+    )
+    created_at = models.DateTimeField(default=timezone.now, editable=False)
+
+    class Meta:
+        ordering = ("created_at", "id")

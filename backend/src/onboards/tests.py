@@ -1,12 +1,22 @@
+import shutil
+import tempfile
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import TestCase, override_settings
+from django.utils import timezone
 from rest_framework.test import APIClient
 from unittest.mock import patch
 
 from core.enums import UserRole
 from src.deals.models import Deal
 from src.employees.models import Employee
-from src.onboards.models import Onboard, Task, TaskAuditLog, TaskCategory
+from src.onboards.models import (
+    Onboard,
+    Task,
+    TaskAttachment,
+    TaskAuditLog,
+    TaskCategory,
+)
 from src.telegram_bot.models import TelegramBotConfig, TelegramChat
 from src.telegram_bot.services.handler import TelegramBotService
 
@@ -209,6 +219,10 @@ class CollaboratorOnboardAccessTests(TestCase):
 
 class TaskApprovalTelegramTests(TestCase):
     def setUp(self):
+        self.media_root = tempfile.mkdtemp()
+        self.media_override = override_settings(MEDIA_ROOT=self.media_root)
+        self.media_override.enable()
+
         self.client = APIClient()
         self.collaborator = get_user_model().objects.create_user(
             username="client-a",
@@ -249,6 +263,11 @@ class TaskApprovalTelegramTests(TestCase):
         deal.collaborators.add(self.collaborator)
         onboard = Onboard.objects.create(deal=deal, term_of_end="2026-06-30")
         self.category = TaskCategory.objects.create(name="Delivery", onboard=onboard)
+
+    def tearDown(self):
+        self.media_override.disable()
+        shutil.rmtree(self.media_root, ignore_errors=True)
+        super().tearDown()
 
     @patch(
         "src.telegram_bot.services.telegram.TelegramClient.send_message_with_result",
@@ -334,6 +353,146 @@ class TaskApprovalTelegramTests(TestCase):
             ).exists()
         )
 
+    @patch(
+        "src.telegram_bot.services.telegram.TelegramClient.send_message_with_result",
+        return_value={"ok": True, "result": {"message_id": 88}},
+    )
+    def test_collaborator_delete_task_requests_cancellation_approval(self, send_message):
+        task = self.create_approved_task()
+        self.client.force_authenticate(self.collaborator)
+
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.delete(f"/api/onboards/tasks/{task.id}/")
+
+        self.assertEqual(response.status_code, 202)
+        task.refresh_from_db()
+        self.assertEqual(task.approval_status, Task.ApprovalStatus.PENDING)
+        self.assertEqual(task.approval_action, Task.ApprovalAction.CANCEL)
+        self.assertEqual(task.approval_requested_by, self.collaborator)
+        self.assertTrue(task.is_active)
+        self.assertNotEqual(task.status, Task.Status.CANCELLED)
+        send_message.assert_called_once()
+        _, text = send_message.call_args.args[:2]
+        self.assertIn("Отмена задачи ожидает одобрения", text)
+        self.assertTrue(
+            task.audit_logs.filter(
+                action=TaskAuditLog.Action.CANCELLATION_REQUESTED,
+                actor=self.collaborator,
+            ).exists()
+        )
+
+    @patch(
+        "src.telegram_bot.services.telegram.TelegramClient.send_message_with_result",
+        return_value={"ok": True, "result": {"message_id": 88}},
+    )
+    def test_collaborator_status_cancel_requests_cancellation_approval(self, send_message):
+        task = self.create_approved_task(status=Task.Status.IN_PROGRESS)
+        self.client.force_authenticate(self.collaborator)
+
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.patch(
+                f"/api/onboards/tasks/{task.id}/",
+                {"status": Task.Status.CANCELLED},
+                format="json",
+            )
+
+        self.assertEqual(response.status_code, 202)
+        task.refresh_from_db()
+        self.assertEqual(task.approval_status, Task.ApprovalStatus.PENDING)
+        self.assertEqual(task.approval_action, Task.ApprovalAction.CANCEL)
+        self.assertEqual(task.status, Task.Status.IN_PROGRESS)
+        send_message.assert_called_once()
+
+    @patch("src.telegram_bot.services.telegram.TelegramClient.edit_message_text")
+    @patch("src.telegram_bot.services.telegram.TelegramClient.answer_callback_query")
+    def test_telegram_approval_callback_approves_task_cancellation(
+        self,
+        answer_callback_query,
+        edit_message_text,
+    ):
+        answer_callback_query.return_value = True
+        edit_message_text.return_value = True
+        task = self.create_cancel_pending_task()
+
+        result = TelegramBotService().handle_update(
+            self.callback_update("task_approval:approve:%s" % task.id)
+        )
+
+        task.refresh_from_db()
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(task.approval_status, Task.ApprovalStatus.CANCELLED)
+        self.assertEqual(task.status, Task.Status.CANCELLED)
+        self.assertFalse(task.is_active)
+        self.assertEqual(task.cancelled_by, self.collaborator)
+        self.assertEqual(task.reviewed_by, self.reviewer)
+        self.assertEqual(task.approval_action, "")
+        self.assertIsNone(task.approval_requested_by)
+        self.assertTrue(
+            task.audit_logs.filter(
+                action=TaskAuditLog.Action.CANCELLED,
+                actor=self.reviewer,
+            ).exists()
+        )
+
+    @patch("src.telegram_bot.services.telegram.TelegramClient.edit_message_text")
+    @patch("src.telegram_bot.services.telegram.TelegramClient.answer_callback_query")
+    def test_telegram_reject_callback_rejects_task_cancellation(
+        self,
+        answer_callback_query,
+        edit_message_text,
+    ):
+        answer_callback_query.return_value = True
+        edit_message_text.return_value = True
+        task = self.create_cancel_pending_task(status=Task.Status.IN_PROGRESS)
+
+        result = TelegramBotService().handle_update(
+            self.callback_update("task_approval:reject:%s" % task.id)
+        )
+
+        task.refresh_from_db()
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(task.approval_status, Task.ApprovalStatus.APPROVED)
+        self.assertEqual(task.status, Task.Status.IN_PROGRESS)
+        self.assertTrue(task.is_active)
+        self.assertIsNone(task.cancelled_by)
+        self.assertEqual(task.approval_action, "")
+        self.assertIsNone(task.approval_requested_by)
+        self.assertTrue(
+            task.audit_logs.filter(
+                action=TaskAuditLog.Action.REJECTED,
+                actor=self.reviewer,
+                metadata__approval_action=Task.ApprovalAction.CANCEL,
+            ).exists()
+        )
+
+    def test_task_attachment_upload_accepts_voice_files(self):
+        task = self.create_approved_task()
+        self.client.force_authenticate(self.collaborator)
+        uploaded = SimpleUploadedFile(
+            "note.ogg",
+            b"voice-bytes",
+            content_type="audio/ogg",
+        )
+
+        response = self.client.post(
+            f"/api/onboards/tasks/{task.id}/attachments/",
+            {"file": uploaded},
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        attachment = TaskAttachment.objects.get(task=task)
+        self.assertEqual(attachment.kind, TaskAttachment.Kind.VOICE)
+        self.assertEqual(attachment.file_name, "note.ogg")
+        self.assertEqual(attachment.uploaded_by, self.collaborator)
+        self.assertIn("file_url", response.data)
+        self.assertTrue(
+            task.audit_logs.filter(
+                action=TaskAuditLog.Action.ATTACHMENT_ADDED,
+                actor=self.collaborator,
+            ).exists()
+        )
+
     def create_pending_task(self):
         task = Task.objects.create(
             category=self.category,
@@ -344,6 +503,9 @@ class TaskApprovalTelegramTests(TestCase):
             date_end="2026-06-30",
             created_by=self.collaborator,
             approval_status=Task.ApprovalStatus.PENDING,
+            approval_action=Task.ApprovalAction.CREATE,
+            approval_requested_by=self.collaborator,
+            approval_requested_at=timezone.now(),
         )
         record = TaskAuditLog.objects.create(
             task=task,
@@ -352,6 +514,36 @@ class TaskApprovalTelegramTests(TestCase):
             action=TaskAuditLog.Action.CREATED,
         )
         self.assertEqual(record.task_id_snapshot, task.id)
+        return task
+
+    def create_approved_task(self, status=Task.Status.TODO):
+        return Task.objects.create(
+            category=self.category,
+            name="Approved task",
+            type="deliverable",
+            status=status,
+            description="Description",
+            date_start="2026-06-01",
+            date_end="2026-06-30",
+            created_by=self.collaborator,
+            approval_status=Task.ApprovalStatus.APPROVED,
+        )
+
+    def create_cancel_pending_task(self, status=Task.Status.TODO):
+        task = self.create_approved_task(status=status)
+        task.approval_status = Task.ApprovalStatus.PENDING
+        task.approval_action = Task.ApprovalAction.CANCEL
+        task.approval_requested_by = self.collaborator
+        task.approval_requested_at = timezone.now()
+        task.save(
+            update_fields=(
+                "approval_status",
+                "approval_action",
+                "approval_requested_by",
+                "approval_requested_at",
+                "updated_at",
+            )
+        )
         return task
 
     def callback_update(self, data):

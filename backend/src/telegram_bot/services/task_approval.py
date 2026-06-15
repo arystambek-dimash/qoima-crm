@@ -34,11 +34,14 @@ class TelegramTaskApprovalService:
         if not chat_id:
             record_task_event(
                 task,
-                task.created_by,
+                self._requester(task),
                 TaskAuditLog.Action.APPROVAL_REQUESTED,
                 source=Task.CreatedVia.TELEGRAM,
                 description="Telegram approval request was not sent.",
-                metadata={"error": "approval chat is not configured"},
+                metadata={
+                    "error": "approval chat is not configured",
+                    "approval_action": self._pending_action(task),
+                },
             )
             return False
 
@@ -52,7 +55,7 @@ class TelegramTaskApprovalService:
 
         record_task_event(
             task,
-            task.created_by,
+            self._requester(task),
             TaskAuditLog.Action.APPROVAL_REQUESTED,
             source=Task.CreatedVia.TELEGRAM,
             description=(
@@ -64,6 +67,7 @@ class TelegramTaskApprovalService:
                 "ok": ok,
                 "chat_id": chat_id,
                 "message_id": message.get("message_id"),
+                "approval_action": self._pending_action(task),
                 "telegram_response": result,
             },
         )
@@ -89,27 +93,54 @@ class TelegramTaskApprovalService:
                 )
 
             now = timezone.now()
+            pending_action = self._pending_action(task)
+            requester = self._requester(task)
             if action == "approve":
-                task.approval_status = Task.ApprovalStatus.APPROVED
-                task.review_comment = ""
-                log_action = TaskAuditLog.Action.APPROVED
-                response = "Задача одобрена."
+                if pending_action == Task.ApprovalAction.CANCEL:
+                    task.status = Task.Status.CANCELLED
+                    task.approval_status = Task.ApprovalStatus.CANCELLED
+                    task.is_active = False
+                    task.cancelled_by = requester
+                    task.cancelled_at = now
+                    task.review_comment = ""
+                    log_action = TaskAuditLog.Action.CANCELLED
+                    response = "Отмена задачи одобрена."
+                else:
+                    task.approval_status = Task.ApprovalStatus.APPROVED
+                    task.review_comment = ""
+                    log_action = TaskAuditLog.Action.APPROVED
+                    response = "Задача одобрена."
             else:
-                task.approval_status = Task.ApprovalStatus.REJECTED
-                task.is_active = False
-                task.review_comment = "Rejected from Telegram."
-                log_action = TaskAuditLog.Action.REJECTED
-                response = "Задача отклонена."
+                if pending_action == Task.ApprovalAction.CANCEL:
+                    task.approval_status = Task.ApprovalStatus.APPROVED
+                    task.review_comment = "Cancellation rejected from Telegram."
+                    log_action = TaskAuditLog.Action.REJECTED
+                    response = "Отмена задачи отклонена."
+                else:
+                    task.approval_status = Task.ApprovalStatus.REJECTED
+                    task.is_active = False
+                    task.review_comment = "Rejected from Telegram."
+                    log_action = TaskAuditLog.Action.REJECTED
+                    response = "Задача отклонена."
 
             task.reviewed_by = user
             task.reviewed_at = now
+            task.approval_action = ""
+            task.approval_requested_by = None
+            task.approval_requested_at = None
             task.save(
                 update_fields=(
+                    "status",
                     "approval_status",
+                    "approval_action",
+                    "approval_requested_by",
+                    "approval_requested_at",
                     "is_active",
                     "reviewed_by",
                     "reviewed_at",
                     "review_comment",
+                    "cancelled_by",
+                    "cancelled_at",
                     "updated_at",
                 )
             )
@@ -120,6 +151,8 @@ class TelegramTaskApprovalService:
                 source=Task.CreatedVia.TELEGRAM,
                 description=response,
                 metadata={
+                    "approval_action": pending_action,
+                    "requested_by": requester.id if requester else None,
                     "callback_query_id": callback_query.get("id"),
                     "telegram_user_id": (callback_query.get("from") or {}).get("id"),
                 },
@@ -203,9 +236,24 @@ class TelegramTaskApprovalService:
         }
 
     def _request_text(self, task: Task) -> str:
-        creator = self._user_label(task.created_by)
+        pending_action = self._pending_action(task)
+        requester = self._requester(task)
         deal = task.category.onboard.deal if task.category and task.category.onboard else None
         deal_label = f"#{deal.id}" if deal else "-"
+
+        if pending_action == Task.ApprovalAction.CANCEL:
+            return "\n".join(
+                [
+                    "Отмена задачи ожидает одобрения",
+                    f"Task: #{task.id} {task.name}",
+                    f"Deal: {deal_label}",
+                    f"Category: {task.category.name}",
+                    f"Current status: {task.get_status_display()}",
+                    f"Requested by: {self._user_label(requester)}",
+                    "",
+                    task.description,
+                ]
+            )
 
         return "\n".join(
             [
@@ -214,7 +262,7 @@ class TelegramTaskApprovalService:
                 f"Deal: {deal_label}",
                 f"Category: {task.category.name}",
                 f"Type: {task.type}",
-                f"Creator: {creator}",
+                f"Creator: {self._user_label(requester)}",
                 f"Start: {task.date_start.isoformat()}",
                 f"End: {task.date_end.isoformat()}",
                 "",
@@ -229,7 +277,8 @@ class TelegramTaskApprovalService:
             [
                 response,
                 f"Task: #{task.id} {task.name}",
-                f"Status: {task.get_approval_status_display()}",
+                f"Approval status: {task.get_approval_status_display()}",
+                f"Task status: {task.get_status_display()}",
                 f"Reviewer: {reviewer_label}",
                 f"Reviewed at: {reviewed_at}",
             ]
@@ -241,11 +290,18 @@ class TelegramTaskApprovalService:
 
         return user.get_full_name() or user.email or user.username or str(user)
 
+    def _pending_action(self, task: Task) -> str:
+        return task.approval_action or Task.ApprovalAction.CREATE
+
+    def _requester(self, task: Task):
+        return task.approval_requested_by or task.created_by
+
     def _task_queryset(self):
         return Task.objects.select_related(
             "category",
             "category__onboard",
             "category__onboard__deal",
             "created_by",
+            "approval_requested_by",
             "reviewed_by",
         )

@@ -128,31 +128,46 @@ export interface DealPaymentCreate {
 
 /* -------------------- Onboards / Tasks -------------------- */
 
-export type TaskStatus = "todo" | "in_progress" | "in_review" | "done";
+export type TaskStatus =
+  | "todo"
+  | "in_progress"
+  | "in_review"
+  | "done"
+  | "cancelled";
 export type TaskPriority = "low" | "medium" | "high" | "urgent";
 export type TaskApprovalStatus =
   | "pending"
   | "approved"
   | "rejected"
   | "cancelled";
+export type TaskApprovalAction = "create" | "cancel" | "";
 export type TaskCreatedVia = "api" | "telegram" | "admin" | string;
+export type TaskAttachmentKind = "file" | "voice";
 
 export type TaskAuditAction =
   | "created"
   | "updated"
+  | "approval_requested"
+  | "cancellation_requested"
   | "approved"
   | "rejected"
   | "cancelled"
   | "assigned"
   | "unassigned"
+  | "attachment_added"
+  | "attachment_removed"
   | string;
 
 export interface TaskAuditLog {
   id: number;
   task: number;
+  task_id_snapshot?: number | null;
   action: TaskAuditAction;
+  source?: TaskCreatedVia;
   actor: number | null;
   actor_detail?: User | null;
+  description?: string;
+  metadata?: Record<string, unknown>;
   /** Optional human-readable note (e.g. rejection reason). */
   message?: string | null;
   /** Optional structured diff returned by the backend. */
@@ -168,26 +183,45 @@ export interface TaskPerformance {
   user_detail?: User;
 }
 
+export interface TaskAttachment {
+  id: number;
+  task: number;
+  file: string;
+  file_url: string;
+  file_name: string;
+  content_type: string;
+  size: number;
+  kind: TaskAttachmentKind;
+  uploaded_by: number | null;
+  uploaded_by_detail?: User | null;
+  created_at: string;
+}
+
 export interface OnboardTask {
   id: number;
   category: number;
   name: string;
   type: string;
+  status: TaskStatus;
   is_active: boolean;
   description: string;
   date_start: string;
   date_end: string;
   performance?: TaskPerformance[];
+  attachments?: TaskAttachment[];
 
   /** Approval lifecycle — set by backend, especially for collaborator-created tasks. */
   approval_status?: TaskApprovalStatus;
+  approval_action?: TaskApprovalAction;
+  approval_requested_by?: number | null;
+  approval_requested_by_detail?: User | null;
+  approval_requested_at?: string | null;
   created_by?: number | null;
   created_by_detail?: User | null;
   created_via?: TaskCreatedVia;
   audit_logs?: TaskAuditLog[];
 
   // Frontend-only fields for now (backend will add these later).
-  status?: TaskStatus;
   priority?: TaskPriority;
   assignee?: { id: number; name: string } | null;
 }
@@ -196,9 +230,10 @@ export interface OnboardTaskCreate {
   category: number;
   name: string;
   type: string;
-  description: string;
+  description?: string;
   date_start: string;
   date_end: string;
+  status?: TaskStatus;
   is_active?: boolean;
 }
 
