@@ -14,8 +14,12 @@ import { Avatar } from "@/components/ui/avatar";
 import { asApiError } from "@/lib/api";
 import { onboards, users } from "@/lib/endpoints";
 import {
+  APPROVAL_LABEL,
+  APPROVAL_TONE,
   PRIORITY_LABEL,
   PRIORITY_TONE,
+  auditLabel,
+  resolveApprovalStatus,
   resolvePriority,
   ticketKey,
   typeMeta,
@@ -25,15 +29,20 @@ import {
   CalendarDays,
   Check,
   CheckSquare,
+  ClipboardCheck,
+  History,
   Plus,
   Square,
   Tag,
   Trash2,
   User as UserIcon,
   X,
+  XCircle,
 } from "lucide-react";
 import type {
   OnboardTask,
+  TaskAuditAction,
+  TaskAuditLog,
   TaskCategory,
   TaskPerformance,
 } from "@/lib/types";
@@ -177,6 +186,15 @@ function TaskDetailInner({
               {PRIORITY_LABEL[priority]}
             </Badge>
             {!isActive && <Badge tone="green">выполнено</Badge>}
+            {(() => {
+              const approval = resolveApprovalStatus(task);
+              if (!approval) return null;
+              return (
+                <Badge tone={APPROVAL_TONE[approval]} dot>
+                  {APPROVAL_LABEL[approval]}
+                </Badge>
+              );
+            })()}
           </div>
         </div>
 
@@ -230,6 +248,8 @@ function TaskDetailInner({
                 </button>
               </section>
             )}
+
+            <AuditLogList logs={task.audit_logs ?? []} />
           </div>
 
           {/* Right — meta */}
@@ -556,4 +576,100 @@ function MetaItem({
       {children}
     </div>
   );
+}
+
+/* ----- Audit log ----- */
+
+function AuditLogList({ logs }: { logs: TaskAuditLog[] }) {
+  if (logs.length === 0) return null;
+
+  const sorted = [...logs].sort(
+    (a, b) =>
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  );
+
+  return (
+    <section>
+      <div className="flex items-center gap-1.5 text-[12px] font-medium text-ink-2 mb-2">
+        <History className="h-3.5 w-3.5" />
+        История
+      </div>
+      <ol className="relative space-y-3 border-l border-hairline pl-4">
+        {sorted.map((log) => (
+          <AuditLogItem key={log.id} log={log} />
+        ))}
+      </ol>
+    </section>
+  );
+}
+
+const AUDIT_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
+  created: Plus,
+  updated: Tag,
+  approved: ClipboardCheck,
+  rejected: XCircle,
+  cancelled: X,
+  assigned: UserIcon,
+  unassigned: UserIcon,
+};
+
+const AUDIT_COLOR: Record<string, string> = {
+  created: "text-tag-blue-fg bg-tag-blue-bg",
+  updated: "text-ink-3 bg-surface-2",
+  approved: "text-tag-green-fg bg-tag-green-bg",
+  rejected: "text-tag-red-fg bg-tag-red-bg",
+  cancelled: "text-ink-3 bg-surface-2",
+  assigned: "text-tag-purple-fg bg-tag-purple-bg",
+  unassigned: "text-ink-3 bg-surface-2",
+};
+
+function AuditLogItem({ log }: { log: TaskAuditLog }) {
+  const Icon = AUDIT_ICON[log.action] ?? History;
+  const color = AUDIT_COLOR[log.action] ?? "text-ink-3 bg-surface-2";
+  const who =
+    log.actor_detail
+      ? `${log.actor_detail.first_name ?? ""} ${log.actor_detail.last_name ?? ""}`.trim() ||
+        log.actor_detail.username ||
+        log.actor_detail.email ||
+        `User #${log.actor_detail.id}`
+      : log.actor != null
+      ? `User #${log.actor}`
+      : "Система";
+
+  return (
+    <li className="relative">
+      <span
+        className={cn(
+          "absolute -left-[26px] top-0.5 h-5 w-5 grid place-items-center rounded-full",
+          color
+        )}
+      >
+        <Icon className="h-3 w-3" />
+      </span>
+      <div className="text-[12px]">
+        <span className="text-ink font-medium">{auditLabel(log.action as TaskAuditAction)}</span>
+        <span className="text-ink-3"> · {who}</span>
+      </div>
+      {log.message && (
+        <p className="text-[12px] text-ink-2 mt-0.5 whitespace-pre-wrap">
+          {log.message}
+        </p>
+      )}
+      <time className="block text-[11px] text-ink-4 tabular-nums mt-0.5">
+        {formatAuditTime(log.created_at)}
+      </time>
+    </li>
+  );
+}
+
+function formatAuditTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return new Intl.DateTimeFormat("ru-RU", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(d);
 }

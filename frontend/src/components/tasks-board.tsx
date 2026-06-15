@@ -44,8 +44,11 @@ import { cn, formatDate } from "@/lib/utils";
 import { asApiError } from "@/lib/api";
 import { onboards } from "@/lib/endpoints";
 import {
+  APPROVAL_SHORT,
+  APPROVAL_TONE,
   PRIORITY_LABEL,
   PRIORITY_TONE,
+  resolveApprovalStatus,
   resolvePriority,
   ticketKey,
   typeMeta,
@@ -56,6 +59,12 @@ interface TasksBoardProps {
   onboardId: number;
   categories: TaskCategory[];
   readOnly?: boolean;
+  /**
+   * When true, the "+ Add card" button is shown even in readOnly mode. Used
+   * for collaborators, who can propose new tasks (pending approval) but
+   * cannot edit categories or drag cards around.
+   */
+  canAddCards?: boolean;
   /** Called when user clicks "+ Add card" on a column. */
   onAddCard: (categoryId: number) => void;
 }
@@ -75,6 +84,7 @@ export function TasksBoard({
   onboardId,
   categories,
   readOnly,
+  canAddCards,
   onAddCard,
 }: TasksBoardProps) {
   const qc = useQueryClient();
@@ -210,6 +220,7 @@ export function TasksBoard({
                 key={c.id}
                 category={c}
                 readOnly={readOnly}
+                canAddCards={canAddCards}
                 onAddCard={onAddCard}
                 onOpenTask={(t) => setDetailTask(t)}
               />
@@ -246,11 +257,13 @@ export function TasksBoard({
 function CategoryColumn({
   category,
   readOnly,
+  canAddCards,
   onAddCard,
   onOpenTask,
 }: {
   category: TaskCategory;
   readOnly?: boolean;
+  canAddCards?: boolean;
   onAddCard: (categoryId: number) => void;
   onOpenTask: (task: OnboardTask) => void;
 }) {
@@ -383,14 +396,14 @@ function CategoryColumn({
       </SortableContext>
 
       {/* Footer — Add card */}
-      {!readOnly && (
+      {(!readOnly || canAddCards) && (
         <button
           type="button"
           onClick={() => onAddCard(category.id)}
           className="flex items-center gap-2 px-3 py-2.5 text-[13px] text-ink-3 hover:text-ink hover:bg-surface-3 transition-colors rounded-b-xl border-t border-hairline"
         >
           <Plus className="h-3.5 w-3.5" />
-          Добавить карточку
+          {readOnly ? "Предложить задачу" : "Добавить карточку"}
         </button>
       )}
     </div>
@@ -557,6 +570,10 @@ function TaskCardVisual({ t }: { t: OnboardTask }) {
   const tm = typeMeta(t.type);
   const priority = resolvePriority(t);
   const isDone = !t.is_active;
+  const approval = resolveApprovalStatus(t);
+  const isPending = approval === "pending";
+  const isRejected = approval === "rejected";
+  const isCancelled = approval === "cancelled";
 
   // Trello-style: chunky colored labels at the top of the card.
   const labels: { color: string; tooltip: string }[] = [
@@ -571,7 +588,10 @@ function TaskCardVisual({ t }: { t: OnboardTask }) {
     <div
       className={cn(
         "group relative bg-canvas border border-hairline rounded-md p-2.5 hover:border-hairline-strong hover:shadow-card transition-all",
-        isDone && "opacity-70"
+        isDone && "opacity-70",
+        isPending && "border-warn/40 ring-1 ring-warn/20",
+        isRejected && "border-danger/40 ring-1 ring-danger/20",
+        isCancelled && "opacity-60"
       )}
     >
       {/* Top labels */}
@@ -591,6 +611,14 @@ function TaskCardVisual({ t }: { t: OnboardTask }) {
           />
         )}
       </div>
+
+      {approval && approval !== "approved" && (
+        <div className="mb-2">
+          <Badge tone={APPROVAL_TONE[approval]} className="text-[11px]">
+            {APPROVAL_SHORT[approval]}
+          </Badge>
+        </div>
+      )}
 
       {/* Title */}
       <div

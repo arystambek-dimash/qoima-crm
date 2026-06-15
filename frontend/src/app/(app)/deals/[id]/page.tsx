@@ -29,10 +29,13 @@ import { formatCurrency, formatDate, cn, plural } from "@/lib/utils";
 import { dealClientName, paymentTypeLabel, stageLabel } from "@/lib/deal-labels";
 import { userDisplayName, userIdOf } from "@/lib/user-helpers";
 import {
+  APPROVAL_SHORT,
+  APPROVAL_TONE,
   PRIORITY_LABEL,
   PRIORITY_TONE,
   STATUS_TONE,
   TASK_COLUMNS,
+  resolveApprovalStatus,
   resolvePriority,
   resolveStatus,
   ticketKey,
@@ -109,8 +112,19 @@ export default function DealDetailPage({
 
   const d = dealQ.data;
 
-  // Collaborators (non-super) can only view their own orders.
-  if (d && isCollaborator && user && userIdOf(d.user) !== user.id) {
+  // Collaborators (non-super) can only view orders where they are attached —
+  // either as the primary `user` or in the multi-collaborator list.
+  const collaboratorIds = new Set<number>([
+    ...(d?.collaborators ?? []),
+    ...((d?.collaborator_details ?? []).map((u) => u.id)),
+  ]);
+  if (
+    d &&
+    isCollaborator &&
+    user &&
+    userIdOf(d.user) !== user.id &&
+    !collaboratorIds.has(user.id)
+  ) {
     return (
       <>
         <Topbar eyebrow="Мои заказы" title="Доступ запрещён" />
@@ -353,6 +367,7 @@ function OverviewTab({
         <PanelBody className="space-y-3 text-[14px]">
           <Row k="Клиент" v={dealClientName(d) || userDisplayName(d.user)} />
           <Row k="Контактный email" v={d.client_email ?? "—"} />
+          <CollaboratorsRow deal={d} />
           <Row k="Статус" v={<StatusBadge stage={d.stage} />} />
           <Row k="Способ оплаты" v={<Badge tone="gray">{paymentTypeLabel(d.payment_type)}</Badge>} />
           <Row k="Открыт" v={formatDate(d.date_start)} />
@@ -428,6 +443,43 @@ function Row({ k, v }: { k: string; v: React.ReactNode }) {
     <div className="flex items-center justify-between gap-4 border-b border-hairline py-2.5 last:border-0">
       <span className="text-ink-3 w-[40%] shrink-0">{k}</span>
       <span className="text-ink-2 text-right">{v}</span>
+    </div>
+  );
+}
+
+function CollaboratorsRow({ deal }: { deal: Deal }) {
+  const list = deal.collaborator_details ?? [];
+  if (list.length === 0) return null;
+
+  const primaryId = userIdOf(deal.user);
+  const extras = list.filter((u) => u.id !== primaryId);
+  if (extras.length === 0) return null;
+
+  return (
+    <div className="flex items-start justify-between gap-4 border-b border-hairline py-2.5 last:border-0">
+      <span className="text-ink-3 w-[40%] shrink-0">Совместный доступ</span>
+      <div className="flex-1 flex flex-wrap justify-end gap-1.5">
+        {extras.map((u) => {
+          const name =
+            `${u.first_name ?? ""} ${u.last_name ?? ""}`.trim() ||
+            u.username ||
+            u.email;
+          return (
+            <span
+              key={u.id}
+              className="inline-flex items-center gap-1.5 h-7 pl-1 pr-2 rounded-full bg-surface-2 border border-hairline text-[12px] text-ink-2"
+              title={u.email}
+            >
+              <Avatar
+                name={name}
+                size={20}
+                className="text-[10px] ring-1 ring-canvas"
+              />
+              <span className="max-w-[160px] truncate">{name}</span>
+            </span>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -510,6 +562,8 @@ function TasksTab({
   const [view, setView] = useState<TaskView>("board");
   const [q, setQ] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<number | "all">("all");
+  const [approvalFilter, setApprovalFilter] =
+    useState<"all" | "pending" | "approved" | "rejected" | "cancelled">("all");
 
   // Add-task dialog state.
   const [addOpen, setAddOpen] = useState(false);
@@ -527,10 +581,22 @@ function TasksTab({
     }
   }
 
+  const approvalCounts = useMemo(() => {
+    const counts = { pending: 0, approved: 0, rejected: 0, cancelled: 0 };
+    for (const t of tasks) {
+      const a = resolveApprovalStatus(t);
+      if (a && a in counts) counts[a] += 1;
+    }
+    return counts;
+  }, [tasks]);
+
   const filtered = useMemo(() => {
     let list = tasks;
     if (categoryFilter !== "all") {
       list = list.filter((t) => t.category === categoryFilter);
+    }
+    if (approvalFilter !== "all") {
+      list = list.filter((t) => resolveApprovalStatus(t) === approvalFilter);
     }
     const term = q.trim().toLowerCase();
     if (term) {
@@ -542,7 +608,7 @@ function TasksTab({
       );
     }
     return list;
-  }, [tasks, q, categoryFilter]);
+  }, [tasks, q, categoryFilter, approvalFilter]);
 
   return (
     <div className="anim-fade space-y-4">
@@ -574,6 +640,11 @@ function TasksTab({
             value={categoryFilter}
             onChange={setCategoryFilter}
           />
+          <ApprovalFilter
+            value={approvalFilter}
+            onChange={setApprovalFilter}
+            counts={approvalCounts}
+          />
           <Button variant="outline" size="sm">
             <Filter className="h-3.5 w-3.5" />
             Фильтр
@@ -604,17 +675,24 @@ function TasksTab({
               Список
             </button>
           </div>
-          {!isCollaborator && (
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => openAdd()}
-              disabled={ensureOnboard.isPending}
-            >
-              <Plus className="h-3.5 w-3.5" />
-              {ensureOnboard.isPending ? "Готовим…" : "Создать"}
-            </Button>
-          )}
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => openAdd()}
+            disabled={ensureOnboard.isPending}
+            title={
+              isCollaborator
+                ? "Задача уйдёт на одобрение администратору"
+                : undefined
+            }
+          >
+            <Plus className="h-3.5 w-3.5" />
+            {ensureOnboard.isPending
+              ? "Готовим…"
+              : isCollaborator
+              ? "Предложить задачу"
+              : "Создать"}
+          </Button>
         </div>
       </div>
 
@@ -624,6 +702,7 @@ function TasksTab({
             onboardId={effectiveOnboardId}
             categories={filterCategories(cats, filtered)}
             readOnly={isCollaborator}
+            canAddCards={isCollaborator}
             onAddCard={(categoryId) => openAdd(categoryId)}
           />
         ) : (
@@ -670,20 +749,22 @@ function EmptyBoardCTA({
       </h3>
       <p className="text-[14px] text-ink-3 mt-1 mb-5">
         {isCollaborator
-          ? "Как только мы добавим первую задачу — план появится здесь."
+          ? "Предложите первую задачу — она появится в плане после одобрения администратором."
           : "Нажмите «Создать задачу» — онбординг и первая категория добавятся автоматически."}
       </p>
-      {!isCollaborator && (
-        <Button
-          variant="primary"
-          size="md"
-          onClick={onCreate}
-          disabled={pending}
-        >
-          <Plus className="h-3.5 w-3.5" />
-          {pending ? "Готовим…" : "Создать задачу"}
-        </Button>
-      )}
+      <Button
+        variant="primary"
+        size="md"
+        onClick={onCreate}
+        disabled={pending}
+      >
+        <Plus className="h-3.5 w-3.5" />
+        {pending
+          ? "Готовим…"
+          : isCollaborator
+          ? "Предложить задачу"
+          : "Создать задачу"}
+      </Button>
     </Panel>
   );
 }
@@ -1007,6 +1088,48 @@ function CategoryFilter({
   );
 }
 
+const APPROVAL_FILTER_OPTIONS: {
+  key: "all" | "pending" | "approved" | "rejected" | "cancelled";
+  label: string;
+}[] = [
+  { key: "all", label: "Все" },
+  { key: "pending", label: "Ожидают" },
+  { key: "approved", label: "Одобренные" },
+  { key: "rejected", label: "Отклонённые" },
+  { key: "cancelled", label: "Отменённые" },
+];
+
+function ApprovalFilter({
+  value,
+  onChange,
+  counts,
+}: {
+  value: "all" | "pending" | "approved" | "rejected" | "cancelled";
+  onChange: (
+    v: "all" | "pending" | "approved" | "rejected" | "cancelled"
+  ) => void;
+  counts: { pending: number; approved: number; rejected: number; cancelled: number };
+}) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value as typeof value)}
+      className="h-8 bg-canvas border border-hairline-strong rounded-md px-2 text-[13px] text-ink-2 hover:border-ink-5 transition-colors cursor-pointer"
+      title="Фильтр по статусу согласования"
+    >
+      {APPROVAL_FILTER_OPTIONS.map((o) => {
+        const n = o.key === "all" ? null : counts[o.key];
+        return (
+          <option key={o.key} value={o.key}>
+            {o.label}
+            {n != null ? ` (${n})` : ""}
+          </option>
+        );
+      })}
+    </select>
+  );
+}
+
 /* Board view is provided by the shared TasksBoard component (Trello-style).
  * Old per-status board has been replaced — see src/components/tasks-board.tsx.
  */
@@ -1033,6 +1156,7 @@ function TasksList({
             <TH className="w-[90px]">Ключ</TH>
             <TH>Название</TH>
             <TH>Статус</TH>
+            <TH>Согласование</TH>
             <TH>Приоритет</TH>
             <TH>Категория</TH>
             <TH>Исполнитель</TH>
@@ -1044,6 +1168,7 @@ function TasksList({
             const tm = typeMeta(t.type);
             const status = resolveStatus(t);
             const priority = resolvePriority(t);
+            const approval = resolveApprovalStatus(t);
             const isDone = status === "done";
             return (
               <TR key={t.id} className="cursor-pointer">
@@ -1075,6 +1200,15 @@ function TasksList({
                   </Badge>
                 </TD>
                 <TD>
+                  {approval ? (
+                    <Badge tone={APPROVAL_TONE[approval]} dot>
+                      {APPROVAL_SHORT[approval]}
+                    </Badge>
+                  ) : (
+                    <span className="text-ink-4 text-[12px]">—</span>
+                  )}
+                </TD>
+                <TD>
                   <Badge tone={PRIORITY_TONE[priority]}>
                     {PRIORITY_LABEL[priority]}
                   </Badge>
@@ -1104,7 +1238,7 @@ function TasksList({
           })}
           {tasks.length === 0 && (
             <TR>
-              <TD colSpan={7} className="text-center text-ink-4 py-12">
+              <TD colSpan={8} className="text-center text-ink-4 py-12">
                 Задачи по фильтрам не найдены.
                 {!readOnly && (
                   <span className="ml-1 text-accent hover:text-accent-ink cursor-pointer">

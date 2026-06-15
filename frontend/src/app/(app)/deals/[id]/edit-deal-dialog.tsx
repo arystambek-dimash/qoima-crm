@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { Check, X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -10,9 +11,11 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/input";
-import { deals } from "@/lib/endpoints";
+import { Avatar } from "@/components/ui/avatar";
+import { deals, users } from "@/lib/endpoints";
 import { asApiError } from "@/lib/api";
-import type { Deal, DealPaymentType } from "@/lib/types";
+import { userIdOf } from "@/lib/user-helpers";
+import type { Deal, DealPaymentType, User } from "@/lib/types";
 
 const PAYMENT_TYPES: { value: DealPaymentType; label: string }[] = [
   { value: "card", label: "Карта" },
@@ -48,19 +51,43 @@ export function EditDealDialog({
     deal.payment_completed
   );
 
+  const primaryId = userIdOf(deal.user);
+  const initialExtraIds = useMemo(() => {
+    const all = deal.collaborators ?? [];
+    return all.filter((id) => id !== primaryId);
+  }, [deal.collaborators, primaryId]);
+  const [extraCollaboratorIds, setExtraCollaboratorIds] =
+    useState<number[]>(initialExtraIds);
+
+  const collaboratorsQ = useQuery({
+    queryKey: ["users", "collaborator"],
+    queryFn: () => users.list("collaborator"),
+    enabled: open,
+  });
+  const collaboratorList = useMemo(
+    () => collaboratorsQ.data ?? [],
+    [collaboratorsQ.data]
+  );
+
   const update = useMutation({
-    mutationFn: () =>
-      deals.update(deal.id, {
+    mutationFn: () => {
+      const collaboratorSet = new Set<number>();
+      if (primaryId != null) collaboratorSet.add(primaryId);
+      for (const id of extraCollaboratorIds) collaboratorSet.add(id);
+
+      return deals.update(deal.id, {
         stage,
         deal_amount: amount,
         payment_type: paymentType,
         date_start: dateStart,
         date_end: dateEnd,
-        // payment_completed is not in DealCreate; sent through `as never` —
-        // backend accepts it on PATCH because the serializer is partial=True.
+        // payment_completed and is_active aren't in DealCreate; sent through
+        // `as never` — backend accepts them on PATCH (partial=True).
         payment_completed: paymentCompleted,
         is_active: stage === "active",
-      } as never),
+        collaborators: Array.from(collaboratorSet),
+      } as never);
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["deal", deal.id] });
       qc.invalidateQueries({ queryKey: ["deals"] });
@@ -156,6 +183,14 @@ export function EditDealDialog({
             Оплачено полностью
           </label>
 
+          <EditCollaborators
+            users={collaboratorList}
+            primaryId={primaryId}
+            selectedIds={extraCollaboratorIds}
+            onChange={setExtraCollaboratorIds}
+            loading={collaboratorsQ.isLoading}
+          />
+
           <div className="flex items-center justify-end gap-2 pt-3 border-t border-hairline">
             <Button
               type="button"
@@ -177,5 +212,164 @@ export function EditDealDialog({
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function EditCollaborators({
+  users: list,
+  primaryId,
+  selectedIds,
+  onChange,
+  loading,
+}: {
+  users: User[];
+  primaryId: number | null;
+  selectedIds: number[];
+  onChange: (next: number[]) => void;
+  loading?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [filter, setFilter] = useState("");
+
+  const selectableUsers = list.filter((u) => u.id !== primaryId);
+  const selected = selectableUsers.filter((u) => selectedIds.includes(u.id));
+  const term = filter.trim().toLowerCase();
+  const candidates = selectableUsers.filter((u) => {
+    if (!term) return true;
+    return (
+      (u.first_name ?? "").toLowerCase().includes(term) ||
+      (u.last_name ?? "").toLowerCase().includes(term) ||
+      u.username.toLowerCase().includes(term) ||
+      u.email.toLowerCase().includes(term)
+    );
+  });
+
+  function toggle(id: number) {
+    if (selectedIds.includes(id)) {
+      onChange(selectedIds.filter((x) => x !== id));
+    } else {
+      onChange([...selectedIds, id]);
+    }
+  }
+
+  function display(u: User) {
+    const name = `${u.first_name ?? ""} ${u.last_name ?? ""}`.trim();
+    return name || u.username || u.email;
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1.5">
+        <label className="text-[12px] font-medium text-ink-2">
+          Дополнительные участники
+        </label>
+        <span className="text-[11px] text-ink-4">
+          {selected.length} выбрано
+        </span>
+      </div>
+
+      {selected.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mb-2">
+          {selected.map((u) => (
+            <span
+              key={u.id}
+              className="inline-flex items-center gap-1.5 h-7 pl-1 pr-1.5 rounded-full bg-tag-blue-bg text-tag-blue-fg text-[12px]"
+            >
+              <Avatar
+                name={display(u)}
+                size={20}
+                className="text-[10px] ring-1 ring-canvas"
+              />
+              <span className="max-w-[160px] truncate">{display(u)}</span>
+              <button
+                type="button"
+                onClick={() => toggle(u.id)}
+                className="h-4 w-4 grid place-items-center rounded-full hover:bg-canvas/60 transition-colors"
+                aria-label="Убрать"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {!open ? (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          disabled={loading || selectableUsers.length === 0}
+          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-dashed border-hairline-strong text-[13px] text-ink-3 hover:text-ink hover:bg-surface-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {loading
+            ? "Загрузка…"
+            : selectableUsers.length === 0
+            ? "Других клиентов нет"
+            : selected.length > 0
+            ? "Добавить ещё"
+            : "Добавить участников"}
+        </button>
+      ) : (
+        <div className="rounded-md border border-hairline-strong bg-canvas shadow-card overflow-hidden">
+          <div className="px-2 py-1.5 border-b border-hairline flex items-center gap-2">
+            <Input
+              autoFocus
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              placeholder="Поиск по имени или email"
+              className="h-7 text-[12px]"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                setFilter("");
+              }}
+              className="h-7 w-7 grid place-items-center rounded text-ink-4 hover:text-ink hover:bg-surface-2"
+              title="Закрыть"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+          {candidates.length === 0 ? (
+            <div className="text-[12px] text-ink-4 px-3 py-4 text-center">
+              Никого не нашли
+            </div>
+          ) : (
+            <ul className="max-h-[200px] overflow-y-auto scrollbar-thin py-1">
+              {candidates.map((u) => {
+                const picked = selectedIds.includes(u.id);
+                return (
+                  <li key={u.id}>
+                    <button
+                      type="button"
+                      onClick={() => toggle(u.id)}
+                      className="w-full flex items-center gap-2 px-2 h-9 text-[13px] text-left hover:bg-surface-2 transition-colors"
+                    >
+                      <Avatar
+                        name={display(u)}
+                        size={20}
+                        className="text-[10px]"
+                      />
+                      <span className="flex-1 min-w-0">
+                        <span className="block text-ink truncate">
+                          {display(u)}
+                        </span>
+                        <span className="block text-[11px] text-ink-4 truncate">
+                          {u.email}
+                        </span>
+                      </span>
+                      {picked && (
+                        <Check className="h-3.5 w-3.5 text-accent shrink-0" />
+                      )}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

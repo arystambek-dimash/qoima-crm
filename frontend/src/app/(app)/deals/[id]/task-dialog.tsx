@@ -12,8 +12,9 @@ import { Button } from "@/components/ui/button";
 import { Field, Input, Textarea } from "@/components/ui/input";
 import { onboards } from "@/lib/endpoints";
 import { asApiError } from "@/lib/api";
+import { useIsSuperuser, useRole } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
-import { Loader2, Plus } from "lucide-react";
+import { Info, Loader2, Plus } from "lucide-react";
 import type {
   OnboardTaskCreate,
   TaskCategory,
@@ -56,6 +57,9 @@ export function AddTaskDialog({
   defaultCategoryId?: number;
 }) {
   const qc = useQueryClient();
+  const role = useRole();
+  const isSuper = useIsSuperuser();
+  const needsApproval = role === "collaborator" && !isSuper;
 
   const [name, setName] = useState("");
   const [type, setType] = useState("deliverable");
@@ -139,9 +143,22 @@ export function AddTaskDialog({
       <DialogContent className="max-w-[540px]">
         <DialogHeader
           eyebrow="Задача · Новая"
-          title="Создать задачу"
-          description="Задача добавится в выбранную категорию плана работ этого заказа."
+          title={needsApproval ? "Предложить задачу" : "Создать задачу"}
+          description={
+            needsApproval
+              ? "Задача появится в плане после одобрения администратором."
+              : "Задача добавится в выбранную категорию плана работ этого заказа."
+          }
         />
+        {needsApproval && (
+          <div className="flex items-start gap-2 mb-1 px-3 py-2 rounded-md bg-tag-yellow-bg/60 text-tag-yellow-fg text-[12px]">
+            <Info className="h-3.5 w-3.5 shrink-0 mt-px" />
+            <span>
+              Статус новой задачи — <strong>ожидает одобрения</strong>. Уведомление
+              уйдёт администраторам в Telegram.
+            </span>
+          </div>
+        )}
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -263,12 +280,12 @@ export function AddTaskDialog({
               {mutation.isPending ? (
                 <>
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  Создаём…
+                  {needsApproval ? "Отправляем…" : "Создаём…"}
                 </>
               ) : (
                 <>
                   <Plus className="h-3.5 w-3.5" />
-                  Создать
+                  {needsApproval ? "Отправить на одобрение" : "Создать"}
                 </>
               )}
             </Button>

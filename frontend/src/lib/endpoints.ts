@@ -104,21 +104,27 @@ export const deals = {
       .then((r) => unwrap(r.data)),
 
   /**
-   * Backend currently has no `?user=` filter (DjangoFilterBackend without
-   * filterset_fields). Until that lands, fetch all and filter on the client.
+   * Collaborator-scoped list. The shared `GET /api/deals/` endpoint already
+   * filters to the requesting user on the backend (own deals + any deal where
+   * they appear in `collaborators`). We keep a defensive client-side filter so
+   * an admin token doesn't accidentally show the full list under this key.
    */
   listForUser: (userId: number) =>
     api
       .get<Deal[] | { results: Deal[] }>("/deals/")
       .then((r) =>
         unwrap(r.data).filter((d) => {
-          const id =
+          const primary =
             typeof d.user === "number"
               ? d.user
               : d.user && typeof d.user === "object"
               ? d.user.id
               : null;
-          return id === userId;
+          if (primary === userId) return true;
+          if ((d.collaborators ?? []).includes(userId)) return true;
+          if ((d.collaborator_details ?? []).some((u) => u.id === userId))
+            return true;
+          return false;
         })
       ),
 

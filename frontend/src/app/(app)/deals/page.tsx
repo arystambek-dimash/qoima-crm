@@ -30,6 +30,7 @@ import { Table, THead, TR, TH, TD } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Avatar } from "@/components/ui/avatar";
 import { deals } from "@/lib/endpoints";
 import { asApiError } from "@/lib/api";
 import {
@@ -47,6 +48,7 @@ import {
   dealClientName,
   dealClientEmail,
   isDealOverdue,
+  userDisplay,
 } from "@/lib/deal-labels";
 import {
   Search,
@@ -553,6 +555,7 @@ function DealRow({
               открыт {formatDate(d.date_start, { month: "short", day: "2-digit" })}
             </span>
           )}
+          <CollaboratorStack deal={d} />
         </div>
       </TD>
       <TD>
@@ -1005,6 +1008,52 @@ function DealCardVisual({ d, now }: { d: Deal; now: number }) {
           {overdue && <AlertTriangle className="h-3 w-3" />}
           {formatDate(d.date_end, { month: "short", day: "2-digit" })}
         </span>
+      </div>
+
+      <CollaboratorStack deal={d} className="mt-2" />
+    </div>
+  );
+}
+
+/**
+ * Compact avatar stack of all collaborators on a deal. Skips when there is at
+ * most the primary user attached.
+ */
+function CollaboratorStack({
+  deal,
+  className,
+}: {
+  deal: Deal;
+  className?: string;
+}) {
+  const list = deal.collaborator_details ?? [];
+  if (list.length === 0) return null;
+
+  const primary =
+    deal.user && typeof deal.user === "object" ? deal.user.id : deal.user;
+  const extras = list.filter((u) => u.id !== primary);
+  if (extras.length === 0) return null;
+
+  const visible = extras.slice(0, 3);
+  const remaining = extras.length - visible.length;
+
+  return (
+    <div className={cn("flex items-center gap-1.5 mt-1", className)}>
+      <span className="text-[11px] text-ink-4">с</span>
+      <div className="flex items-center -space-x-1.5">
+        {visible.map((u) => (
+          <Avatar
+            key={u.id}
+            name={userDisplay(u)}
+            size={18}
+            className="text-[9px] ring-2 ring-canvas"
+          />
+        ))}
+        {remaining > 0 && (
+          <span className="h-[18px] min-w-[18px] px-1 grid place-items-center rounded-full bg-surface-3 text-[9px] font-medium text-ink-3 ring-2 ring-canvas">
+            +{remaining}
+          </span>
+        )}
       </div>
     </div>
   );

@@ -24,9 +24,14 @@ import {
   useHasPermission,
   useIsSuperuser,
 } from "@/lib/permissions";
-import { dashboard, deals } from "@/lib/endpoints";
+import { dashboard, deals, onboards } from "@/lib/endpoints";
 import { formatCurrency, formatDate, cn, pluralOrders } from "@/lib/utils";
 import { stageLabel } from "@/lib/deal-labels";
+import {
+  APPROVAL_LABEL,
+  APPROVAL_TONE,
+  resolveApprovalStatus,
+} from "@/lib/task-helpers";
 import { typeMetaForIncome } from "@/lib/income-type-meta";
 import { typeMetaForSpending } from "@/lib/spending-type-meta";
 import {
@@ -35,10 +40,13 @@ import {
   Briefcase,
   CheckCircle2,
   Circle,
+  ClipboardCheck,
   ClipboardList,
+  Clock,
   ListChecks,
   Loader2,
   X,
+  XCircle,
 } from "lucide-react";
 import {
   Area,
@@ -93,7 +101,13 @@ export default function DashboardPage() {
   );
 }
 
-/* ----------- Collaborator dashboard (unchanged shape) ----------- */
+/* ----------- Collaborator dashboard -----------
+ *
+ * Composed entirely from the shared collaborator-scoped endpoints. We do NOT
+ * call /api/dashboard/analytics/ for collaborators — that endpoint requires
+ * accounting permissions. Backend scopes /deals/, /onboards/ and
+ * /onboards/tasks/ to the requesting user automatically.
+ */
 
 function CollaboratorDashboard({
   userId,
@@ -102,39 +116,82 @@ function CollaboratorDashboard({
   userId: number;
   userName: string;
 }) {
+  const now = useNow();
   const myDealsQ = useQuery({
     queryKey: ["deals", "mine", userId],
     queryFn: () => deals.listForUser(userId),
     enabled: !!userId,
   });
+  const myOnboardsQ = useQuery({
+    queryKey: ["onboards", "mine", userId],
+    queryFn: onboards.list,
+    enabled: !!userId,
+  });
+  const myTasksQ = useQuery({
+    queryKey: ["onboards", "tasks", "mine", userId],
+    queryFn: onboards.tasksList,
+    enabled: !!userId,
+  });
+
   const myDeals = useMemo(() => myDealsQ.data ?? [], [myDealsQ.data]);
+  const myOnboards = useMemo(
+    () => myOnboardsQ.data ?? [],
+    [myOnboardsQ.data]
+  );
+  const myTasks = useMemo(() => myTasksQ.data ?? [], [myTasksQ.data]);
 
   const active = myDeals.filter((d) => d.stage === "active");
   const totalValue = myDeals.reduce((a, d) => a + Number(d.deal_amount), 0);
   const paid = myDeals.reduce((a, d) => a + Number(d.paid_to_date ?? 0), 0);
   const remaining = myDeals.reduce((a, d) => a + Number(d.remaining ?? 0), 0);
 
+  const approvalBuckets = useMemo(() => {
+    const out = {
+      pending: [] as typeof myTasks,
+      approved: [] as typeof myTasks,
+      rejected: [] as typeof myTasks,
+      cancelled: [] as typeof myTasks,
+    };
+    for (const t of myTasks) {
+      const a = resolveApprovalStatus(t);
+      if (a && a in out) out[a].push(t);
+    }
+    return out;
+  }, [myTasks]);
+
+  const upcomingDeadlines = useMemo(() => {
+    if (now === 0) return [];
+    const horizon = now + 1000 * 60 * 60 * 24 * 14;
+    return myTasks
+      .filter((t) => t.is_active && resolveApprovalStatus(t) !== "cancelled")
+      .map((t) => ({ t, end: new Date(t.date_end).getTime() }))
+      .filter(({ end }) => !Number.isNaN(end) && end <= horizon)
+      .sort((a, b) => a.end - b.end)
+      .slice(0, 6);
+  }, [myTasks, now]);
+
+  const ordersHint = active.length
+    ? `У вас ${active.length} ${pluralOrders(active.length)} в работе на сумму ${formatCurrency(totalValue)}.`
+    : "Активных заказов сейчас нет.";
+
   return (
     <>
       <Topbar eyebrow="Главная" title="Главная" />
       <main className="flex-1 px-6 lg:px-10 py-10 max-w-[1080px] mx-auto w-full">
-        <header className="mb-10 stagger">
+        <header className="mb-8 stagger">
           <h1 className="font-display text-[28px] tracking-tight text-ink text-balance">
-            Привет, {userName.split(" ")[0]}.{" "}
+            Привет, {userName.split(" ")[0] || "коллега"}.{" "}
             <span className="font-normal text-ink-3">
-              Вот статус ваших заказов.
+              Вот ваши заказы и задачи.
             </span>
           </h1>
           <p className="mt-3 text-[14px] text-ink-3 max-w-[60ch]">
-            У вас {active.length} {pluralOrders(active.length)} в работе на сумму{" "}
-            <span className="text-ink font-medium">
-              {formatCurrency(totalValue)}
-            </span>
-            . Откройте любой заказ, чтобы увидеть план задач и график платежей.
+            {ordersHint} Откройте любой заказ, чтобы увидеть план задач — или
+            предложите новую задачу, она уйдёт на одобрение.
           </p>
         </header>
 
-        <section className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-10 stagger">
+        <section className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8 stagger">
           <StatCard
             label="Активные заказы"
             value={String(active.length)}
@@ -151,66 +208,252 @@ function CollaboratorDashboard({
             value={formatCurrency(remaining)}
             caption="к оплате"
           />
+          <StatCard
+            label="Ожидают одобрения"
+            value={String(approvalBuckets.pending.length)}
+            caption={`${myTasks.length} задач всего`}
+          />
         </section>
 
-        <Panel>
-          <PanelHeader>
-            <PanelTitle>Ваши заказы</PanelTitle>
-            <Link
-              href="/deals"
-              className="text-[13px] text-ink-3 hover:text-accent transition-colors inline-flex items-center gap-1"
-            >
-              Все заказы
-              <ArrowUpRight className="h-3 w-3" />
-            </Link>
-          </PanelHeader>
-          {myDeals.length === 0 ? (
-            <PanelBody className="text-center text-[14px] text-ink-3 py-10">
-              Заказов пока нет. Они появятся здесь, как только мы подпишем
-              договор.
-            </PanelBody>
-          ) : (
-            <Table>
-              <THead>
-                <TR>
-                  <TH>Заказ</TH>
-                  <TH>Статус</TH>
-                  <TH className="text-right">Сумма</TH>
-                  <TH className="text-right">Оплачено</TH>
-                  <TH>Срок</TH>
-                </TR>
-              </THead>
-              <tbody>
-                {myDeals.map((d) => (
-                  <TR key={d.id} className="cursor-pointer">
-                    <TD>
-                      <Link
-                        href={`/deals/${d.id}` as never}
-                        className="text-ink hover:text-accent transition-colors font-medium"
-                      >
-                        {d.client_name}
-                      </Link>
-                    </TD>
-                    <TD>
-                      <StatusBadge stage={d.stage} />
-                    </TD>
-                    <TD className="text-right font-medium tabular-nums">
-                      {formatCurrency(d.deal_amount)}
-                    </TD>
-                    <TD className="text-right text-ink-3 tabular-nums">
-                      {formatCurrency(d.paid_to_date)}
-                    </TD>
-                    <TD className="text-ink-3 tabular-nums">
-                      {formatDate(d.date_end)}
-                    </TD>
+        <section className="grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-4 mb-6">
+          <Panel>
+            <PanelHeader>
+              <PanelTitle>Ваши заказы</PanelTitle>
+              <Link
+                href="/deals"
+                className="text-[13px] text-ink-3 hover:text-accent transition-colors inline-flex items-center gap-1"
+              >
+                Все заказы
+                <ArrowUpRight className="h-3 w-3" />
+              </Link>
+            </PanelHeader>
+            {myDeals.length === 0 ? (
+              <PanelBody className="text-center text-[14px] text-ink-3 py-10">
+                Заказов пока нет. Они появятся здесь, как только мы подпишем
+                договор.
+              </PanelBody>
+            ) : (
+              <Table>
+                <THead>
+                  <TR>
+                    <TH>Заказ</TH>
+                    <TH>Статус</TH>
+                    <TH className="text-right">Сумма</TH>
+                    <TH className="text-right">Оплачено</TH>
+                    <TH>Срок</TH>
                   </TR>
+                </THead>
+                <tbody>
+                  {myDeals.map((d) => (
+                    <TR key={d.id} className="cursor-pointer">
+                      <TD>
+                        <Link
+                          href={`/deals/${d.id}` as never}
+                          className="text-ink hover:text-accent transition-colors font-medium"
+                        >
+                          {d.client_name ?? `Заказ #${d.id}`}
+                        </Link>
+                      </TD>
+                      <TD>
+                        <StatusBadge stage={d.stage} />
+                      </TD>
+                      <TD className="text-right font-medium tabular-nums">
+                        {formatCurrency(d.deal_amount)}
+                      </TD>
+                      <TD className="text-right text-ink-3 tabular-nums">
+                        {formatCurrency(d.paid_to_date)}
+                      </TD>
+                      <TD className="text-ink-3 tabular-nums">
+                        {formatDate(d.date_end)}
+                      </TD>
+                    </TR>
+                  ))}
+                </tbody>
+              </Table>
+            )}
+          </Panel>
+
+          <Panel>
+            <PanelHeader>
+              <PanelTitle>Согласование задач</PanelTitle>
+              <span className="text-[12px] text-ink-3">
+                всего {myTasks.length}
+              </span>
+            </PanelHeader>
+            <PanelBody className="space-y-2.5">
+              <ApprovalTile
+                icon={Clock}
+                tone="warn"
+                label={APPROVAL_LABEL.pending}
+                count={approvalBuckets.pending.length}
+              />
+              <ApprovalTile
+                icon={ClipboardCheck}
+                tone="success"
+                label={APPROVAL_LABEL.approved}
+                count={approvalBuckets.approved.length}
+              />
+              <ApprovalTile
+                icon={XCircle}
+                tone="danger"
+                label={APPROVAL_LABEL.rejected}
+                count={approvalBuckets.rejected.length}
+              />
+              <ApprovalTile
+                icon={X}
+                tone="neutral"
+                label={APPROVAL_LABEL.cancelled}
+                count={approvalBuckets.cancelled.length}
+              />
+            </PanelBody>
+          </Panel>
+        </section>
+
+        <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <Panel>
+            <PanelHeader>
+              <PanelTitle>Ожидают одобрения</PanelTitle>
+              <span className="text-[12px] text-ink-3">
+                {approvalBuckets.pending.length}
+              </span>
+            </PanelHeader>
+            <PanelBody>
+              {approvalBuckets.pending.length === 0 ? (
+                <p className="text-[13px] text-ink-3 text-center py-8">
+                  Все ваши задачи рассмотрены.
+                </p>
+              ) : (
+                <ul className="space-y-1.5">
+                  {approvalBuckets.pending.slice(0, 8).map((t) => (
+                    <li
+                      key={t.id}
+                      className="flex items-center justify-between gap-3 px-2 h-9 rounded-md hover:bg-surface-2 transition-colors"
+                    >
+                      <span className="text-[13px] text-ink truncate">
+                        {t.name}
+                      </span>
+                      <Badge tone={APPROVAL_TONE.pending} dot>
+                        ожидает
+                      </Badge>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </PanelBody>
+          </Panel>
+
+          <Panel>
+            <PanelHeader>
+              <PanelTitle>Ближайшие сроки</PanelTitle>
+              <span className="text-[12px] text-ink-3">
+                {upcomingDeadlines.length}
+              </span>
+            </PanelHeader>
+            <PanelBody>
+              {upcomingDeadlines.length === 0 ? (
+                <p className="text-[13px] text-ink-3 text-center py-8">
+                  На ближайшие 2 недели сроков нет.
+                </p>
+              ) : (
+                <ul className="space-y-1.5">
+                  {upcomingDeadlines.map(({ t, end }) => {
+                    const overdue = now > 0 && end < now;
+                    return (
+                      <li
+                        key={t.id}
+                        className="flex items-center justify-between gap-3 px-2 h-9 rounded-md hover:bg-surface-2 transition-colors"
+                      >
+                        <span className="text-[13px] text-ink truncate">
+                          {t.name}
+                        </span>
+                        <span
+                          className={cn(
+                            "text-[12px] tabular-nums inline-flex items-center gap-1",
+                            overdue ? "text-danger font-medium" : "text-ink-3"
+                          )}
+                        >
+                          {overdue && <AlertTriangle className="h-3 w-3" />}
+                          {formatDate(t.date_end, {
+                            month: "short",
+                            day: "2-digit",
+                          })}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </PanelBody>
+          </Panel>
+        </section>
+
+        {myOnboards.length > 0 && (
+          <Panel className="mt-6">
+            <PanelHeader>
+              <PanelTitle>Программы</PanelTitle>
+              <span className="text-[12px] text-ink-3">
+                {myOnboards.length} {plural(myOnboards.length, "программа", "программы", "программ")}
+              </span>
+            </PanelHeader>
+            <PanelBody>
+              <ul className="space-y-1.5">
+                {myOnboards.slice(0, 5).map((o) => (
+                  <li
+                    key={o.id}
+                    className="flex items-center justify-between gap-3 px-2 h-9 rounded-md hover:bg-surface-2 transition-colors"
+                  >
+                    <Link
+                      href={`/onboards/${o.id}` as never}
+                      className="text-[13px] text-ink hover:text-accent transition-colors truncate"
+                    >
+                      {o.name || o.client_name || `Онбординг #${o.id}`}
+                    </Link>
+                    <span className="text-[12px] text-ink-3 tabular-nums">
+                      до {formatDate(o.term_of_end)}
+                    </span>
+                  </li>
                 ))}
-              </tbody>
-            </Table>
-          )}
-        </Panel>
+              </ul>
+            </PanelBody>
+          </Panel>
+        )}
       </main>
     </>
+  );
+}
+
+function ApprovalTile({
+  icon: Icon,
+  label,
+  count,
+  tone,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  count: number;
+  tone: "warn" | "success" | "danger" | "neutral";
+}) {
+  const toneCls: Record<string, string> = {
+    warn: "bg-tag-yellow-bg/60 text-tag-yellow-fg",
+    success: "bg-tag-green-bg/60 text-tag-green-fg",
+    danger: "bg-tag-red-bg/50 text-tag-red-fg",
+    neutral: "bg-surface-2 text-ink-3",
+  };
+  return (
+    <div className="flex items-center gap-3 px-3 h-11 rounded-md border border-hairline bg-canvas">
+      <span
+        className={cn(
+          "h-7 w-7 rounded-md grid place-items-center shrink-0",
+          toneCls[tone]
+        )}
+      >
+        <Icon className="h-3.5 w-3.5" />
+      </span>
+      <span className="flex-1 text-[13px] text-ink-2">{label}</span>
+      <span className="font-display text-[16px] tabular-nums text-ink">
+        {count}
+      </span>
+    </div>
   );
 }
 

@@ -74,8 +74,12 @@ export interface Deal {
    *   - `user_detail` — nested User (DealSerializer should add
    *     `user_detail = UserSerializer(source="user", read_only=True)`).
    *   - `paid_to_date` / `remaining` — annotated Sum of related payments.
+   *   - `collaborators` / `collaborator_details` — extra collaborators on the
+   *     deal beyond the primary `user`.
    */
   user_detail?: User;
+  collaborators?: number[];
+  collaborator_details?: User[];
   paid_to_date?: string;
   remaining?: string;
 
@@ -90,6 +94,8 @@ export interface DealCreate {
   date_end: string;
   deal_amount: string;
   payment_type: DealPaymentType;
+  user?: number;
+  collaborators?: number[];
 }
 
 export interface DealFile {
@@ -124,6 +130,35 @@ export interface DealPaymentCreate {
 
 export type TaskStatus = "todo" | "in_progress" | "in_review" | "done";
 export type TaskPriority = "low" | "medium" | "high" | "urgent";
+export type TaskApprovalStatus =
+  | "pending"
+  | "approved"
+  | "rejected"
+  | "cancelled";
+export type TaskCreatedVia = "api" | "telegram" | "admin" | string;
+
+export type TaskAuditAction =
+  | "created"
+  | "updated"
+  | "approved"
+  | "rejected"
+  | "cancelled"
+  | "assigned"
+  | "unassigned"
+  | string;
+
+export interface TaskAuditLog {
+  id: number;
+  task: number;
+  action: TaskAuditAction;
+  actor: number | null;
+  actor_detail?: User | null;
+  /** Optional human-readable note (e.g. rejection reason). */
+  message?: string | null;
+  /** Optional structured diff returned by the backend. */
+  changes?: Record<string, unknown> | null;
+  created_at: string;
+}
 
 export interface TaskPerformance {
   id: number;
@@ -143,6 +178,13 @@ export interface OnboardTask {
   date_start: string;
   date_end: string;
   performance?: TaskPerformance[];
+
+  /** Approval lifecycle — set by backend, especially for collaborator-created tasks. */
+  approval_status?: TaskApprovalStatus;
+  created_by?: number | null;
+  created_by_detail?: User | null;
+  created_via?: TaskCreatedVia;
+  audit_logs?: TaskAuditLog[];
 
   // Frontend-only fields for now (backend will add these later).
   status?: TaskStatus;

@@ -1,4 +1,10 @@
-import type { OnboardTask, TaskPriority, TaskStatus } from "./types";
+import type {
+  OnboardTask,
+  TaskApprovalStatus,
+  TaskAuditAction,
+  TaskPriority,
+  TaskStatus,
+} from "./types";
 
 export const TASK_COLUMNS: { key: TaskStatus; label: string }[] = [
   { key: "todo", label: "К выполнению" },
@@ -78,4 +84,52 @@ export function typeMeta(type: string): {
  */
 export function ticketKey(t: OnboardTask): string {
   return `QOI-${String(t.id).padStart(3, "0")}`;
+}
+
+/* -------------------- Approval status -------------------- */
+
+export const APPROVAL_LABEL: Record<TaskApprovalStatus, string> = {
+  pending: "Ожидает одобрения",
+  approved: "Одобрено",
+  rejected: "Отклонено",
+  cancelled: "Отменено",
+};
+
+export const APPROVAL_SHORT: Record<TaskApprovalStatus, string> = {
+  pending: "ожидает",
+  approved: "одобрено",
+  rejected: "отклонено",
+  cancelled: "отменено",
+};
+
+export const APPROVAL_TONE: Record<
+  TaskApprovalStatus,
+  "yellow" | "green" | "red" | "gray"
+> = {
+  pending: "yellow",
+  approved: "green",
+  rejected: "red",
+  cancelled: "gray",
+};
+
+export function resolveApprovalStatus(
+  t: OnboardTask
+): TaskApprovalStatus | null {
+  return t.approval_status ?? null;
+}
+
+/* -------------------- Audit log -------------------- */
+
+export const AUDIT_LABEL: Record<string, string> = {
+  created: "Создана",
+  updated: "Обновлена",
+  approved: "Одобрена",
+  rejected: "Отклонена",
+  cancelled: "Отменена",
+  assigned: "Назначен исполнитель",
+  unassigned: "Снят исполнитель",
+};
+
+export function auditLabel(action: TaskAuditAction): string {
+  return AUDIT_LABEL[action] ?? action;
 }
