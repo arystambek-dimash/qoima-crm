@@ -14,6 +14,7 @@ export function DropdownMenuContent({
   className,
   sideOffset = 6,
   align = "end",
+  collisionPadding = 8,
   ...props
 }: React.ComponentProps<typeof DM.Content>) {
   return (
@@ -21,8 +22,9 @@ export function DropdownMenuContent({
       <DM.Content
         sideOffset={sideOffset}
         align={align}
+        collisionPadding={collisionPadding}
         className={cn(
-          "z-50 min-w-[200px] bg-canvas border border-hairline-strong rounded-lg p-1 text-[14px] text-ink shadow-pop",
+          "z-50 min-w-[200px] max-w-[calc(100vw-1rem)] bg-canvas border border-hairline-strong rounded-lg p-1 text-[14px] text-ink shadow-pop",
           "data-[state=open]:anim-fade",
           className
         )}

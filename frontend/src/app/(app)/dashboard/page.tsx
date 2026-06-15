@@ -177,9 +177,9 @@ function CollaboratorDashboard({
   return (
     <>
       <Topbar eyebrow="Главная" title="Главная" />
-      <main className="flex-1 px-6 lg:px-10 py-10 max-w-[1080px] mx-auto w-full">
+      <main className="flex-1 px-4 sm:px-6 lg:px-10 py-6 sm:py-10 max-w-[1080px] mx-auto w-full">
         <header className="mb-8 stagger">
-          <h1 className="font-display text-[28px] tracking-tight text-ink text-balance">
+          <h1 className="font-display text-[22px] sm:text-[28px] tracking-tight text-ink text-balance">
             Привет, {userName.split(" ")[0] || "коллега"}.{" "}
             <span className="font-normal text-ink-3">
               Вот ваши заказы и задачи.
@@ -191,7 +191,7 @@ function CollaboratorDashboard({
           </p>
         </header>
 
-        <section className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8 stagger">
+        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-8 stagger">
           <StatCard
             label="Активные заказы"
             value={String(active.length)}
@@ -239,8 +239,8 @@ function CollaboratorDashboard({
                     <TH>Заказ</TH>
                     <TH>Статус</TH>
                     <TH className="text-right">Сумма</TH>
-                    <TH className="text-right">Оплачено</TH>
-                    <TH>Срок</TH>
+                    <TH className="text-right hidden sm:table-cell">Оплачено</TH>
+                    <TH className="hidden sm:table-cell">Срок</TH>
                   </TR>
                 </THead>
                 <tbody>
@@ -260,10 +260,10 @@ function CollaboratorDashboard({
                       <TD className="text-right font-medium tabular-nums">
                         {formatCurrency(d.deal_amount)}
                       </TD>
-                      <TD className="text-right text-ink-3 tabular-nums">
+                      <TD className="text-right text-ink-3 tabular-nums hidden sm:table-cell">
                         {formatCurrency(d.paid_to_date)}
                       </TD>
-                      <TD className="text-ink-3 tabular-nums">
+                      <TD className="text-ink-3 tabular-nums hidden sm:table-cell">
                         {formatDate(d.date_end)}
                       </TD>
                     </TR>
@@ -534,7 +534,7 @@ function EmployeeDashboard({
           ) : undefined
         }
       />
-      <main className="flex-1 px-6 lg:px-10 py-10 max-w-[1280px] mx-auto w-full">
+      <main className="flex-1 px-4 sm:px-6 lg:px-10 py-6 sm:py-10 max-w-[1280px] mx-auto w-full">
         <header className="mb-8 stagger">
           <p className="text-[13px] text-ink-3 mb-2">
             {new Intl.DateTimeFormat("ru-RU", {
@@ -543,7 +543,7 @@ function EmployeeDashboard({
               day: "numeric",
             }).format(now ? new Date(now) : new Date())}
           </p>
-          <h1 className="font-display text-[28px] md:text-[32px] tracking-tight text-ink text-balance">
+          <h1 className="font-display text-[24px] sm:text-[28px] md:text-[32px] tracking-tight text-ink text-balance">
             Добро пожаловать.{" "}
             <span className="font-normal text-ink-3">
               Сводка по доходам, расходам и задачам.
@@ -554,46 +554,50 @@ function EmployeeDashboard({
         {/* Period & group controls */}
         <section className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[12px] text-ink-3">Период:</span>
-            {PERIOD_OPTIONS.map((p) => (
-              <Chip
-                key={p.key}
-                active={period === p.key && !fromDate && !toDate}
-                onClick={() => {
-                  setPeriod(p.key);
-                  setFromDate("");
-                  setToDate("");
-                }}
-                label={p.label}
-              />
-            ))}
-            <span className="text-[12px] text-ink-3 ml-2">Группировка:</span>
-            {GROUP_OPTIONS.map((g) => (
-              <Chip
-                key={g.key}
-                active={groupBy === g.key}
-                onClick={() => setGroupBy(g.key)}
-                label={g.label}
-              />
-            ))}
+            <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+              <span className="text-[12px] text-ink-3">Период:</span>
+              {PERIOD_OPTIONS.map((p) => (
+                <Chip
+                  key={p.key}
+                  active={period === p.key && !fromDate && !toDate}
+                  onClick={() => {
+                    setPeriod(p.key);
+                    setFromDate("");
+                    setToDate("");
+                  }}
+                  label={p.label}
+                />
+              ))}
+            </div>
+            <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+              <span className="text-[12px] text-ink-3 md:ml-2">Группировка:</span>
+              {GROUP_OPTIONS.map((g) => (
+                <Chip
+                  key={g.key}
+                  active={groupBy === g.key}
+                  onClick={() => setGroupBy(g.key)}
+                  label={g.label}
+                />
+              ))}
+            </div>
           </div>
-          <div className="flex items-end gap-2">
-            <div>
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="flex-1 min-w-[140px]">
               <label className="text-[11px] text-ink-3 block mb-1">С даты</label>
               <Input
                 type="date"
                 value={fromDate}
                 onChange={(e) => setFromDate(e.target.value)}
-                className="h-8 w-[140px] text-[12px]"
+                className="h-8 w-full sm:w-[140px] text-[12px]"
               />
             </div>
-            <div>
+            <div className="flex-1 min-w-[140px]">
               <label className="text-[11px] text-ink-3 block mb-1">По дату</label>
               <Input
                 type="date"
                 value={toDate}
                 onChange={(e) => setToDate(e.target.value)}
-                className="h-8 w-[140px] text-[12px]"
+                className="h-8 w-full sm:w-[140px] text-[12px]"
               />
             </div>
             {(fromDate || toDate) && (
@@ -639,7 +643,7 @@ function EmployeeDashboard({
         {data && finance && tasks && (
           <>
             {/* KPI cards */}
-            <section className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 mb-8 stagger">
+            <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 mb-8 stagger">
               {finance.wallet && (
                 <StatCard
                   accent
@@ -1073,7 +1077,7 @@ function Chip({
       type="button"
       onClick={onClick}
       className={cn(
-        "inline-flex items-center h-7 px-2.5 rounded-full text-[12px] border transition-colors",
+        "inline-flex items-center h-8 md:h-7 px-2.5 rounded-full text-[12px] border transition-colors",
         active
           ? "bg-accent-soft border-accent/40 text-accent-ink font-medium"
           : "bg-canvas border-hairline-strong text-ink-2 hover:border-ink-5 hover:bg-surface-2"
@@ -1167,16 +1171,16 @@ function ByTypeDonut({
                 return (
                   <li
                     key={d.name}
-                    className="flex items-center justify-between text-[12px] px-2 py-1 rounded hover:bg-surface-2"
+                    className="flex items-center justify-between gap-2 text-[12px] px-2 py-1 rounded hover:bg-surface-2 min-w-0"
                   >
-                    <span className="flex items-center gap-2">
+                    <span className="flex items-center gap-2 min-w-0">
                       <span
-                        className="h-1.5 w-1.5 rounded-full"
+                        className="h-1.5 w-1.5 rounded-full shrink-0"
                         style={{ background: d.color }}
                       />
-                      <span className="text-ink">{d.label}</span>
+                      <span className="text-ink truncate">{d.label}</span>
                     </span>
-                    <span className="flex items-center gap-3 tabular-nums">
+                    <span className="flex items-center gap-3 tabular-nums shrink-0">
                       <span className="text-ink-3">{pct.toFixed(0)}%</span>
                       <span className="text-ink">{formatCurrency(d.value)}</span>
                     </span>

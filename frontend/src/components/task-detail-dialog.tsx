@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar } from "@/components/ui/avatar";
 import { asApiError } from "@/lib/api";
 import { onboards, users } from "@/lib/endpoints";
+import { VoiceRecorder } from "@/components/voice-recorder";
 import {
   PRIORITY_LABEL,
   PRIORITY_TONE,
@@ -175,7 +176,7 @@ function TaskDetailInner({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[680px] p-0 overflow-hidden">
         {/* Header */}
-        <div className="px-6 pt-6 pb-4 border-b border-hairline">
+        <div className="px-4 sm:px-6 pt-6 pb-4 border-b border-hairline">
           <div className="flex items-center gap-2 mb-2">
             <span className="text-[12px] font-mono text-ink-3 tabular-nums">
               {ticketKey(task)}
@@ -220,9 +221,9 @@ function TaskDetailInner({
         </div>
 
         {/* Body */}
-        <div className="grid grid-cols-[1fr_220px] gap-0">
+        <div className="grid grid-cols-1 md:grid-cols-[1fr_220px] gap-0">
           {/* Left — main fields */}
-          <div className="px-6 py-5 space-y-5 max-h-[60vh] overflow-y-auto scrollbar-thin">
+          <div className="px-4 sm:px-6 py-5 space-y-5 max-h-none md:max-h-[60vh] overflow-y-auto scrollbar-thin">
             <section>
               <label className="block text-[12px] font-medium text-ink-2 mb-1.5">
                 Описание
@@ -254,7 +255,7 @@ function TaskDetailInner({
           </div>
 
           {/* Right — meta */}
-          <aside className="border-l border-hairline px-5 py-5 space-y-4 bg-surface/40">
+          <aside className="border-t md:border-l border-hairline px-4 md:px-5 py-5 space-y-4 bg-surface/40">
             <MetaItem icon={Check} label="Статус">
               {readOnly ? (
                 <Badge tone={STATUS_TONE[status]} dot>
@@ -358,7 +359,7 @@ function TaskDetailInner({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-3 border-t border-hairline flex items-center justify-between bg-surface/40">
+        <div className="px-4 sm:px-6 py-3 border-t border-hairline flex items-center justify-between flex-wrap gap-2 bg-surface/40">
           {!readOnly ? (
             <button
               type="button"
@@ -806,6 +807,12 @@ function AttachmentsSection({
             />
           ))}
         </ul>
+      )}
+
+      {!readOnly && (
+        <div className="mt-3">
+          <VoiceRecorder onRecorded={(audio) => upload.mutate([audio])} />
+        </div>
       )}
     </section>
   );

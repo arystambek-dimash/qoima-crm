@@ -52,7 +52,7 @@ export default function OnboardsPage() {
           />
         }
       />
-      <main className="flex-1 px-6 lg:px-10 py-10 max-w-[1280px] mx-auto w-full">
+      <main className="flex-1 px-4 sm:px-6 lg:px-10 py-10 max-w-[1280px] mx-auto w-full">
         <header className="mb-8 anim-rise">
           <h1 className="font-display text-[28px] tracking-tight text-ink">
             Онбординг

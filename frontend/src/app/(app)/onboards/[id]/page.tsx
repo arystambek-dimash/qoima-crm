@@ -78,7 +78,7 @@ export default function OnboardDetailPage({
         categories={cats}
         defaultCategoryId={addCategoryId}
       />
-      <main className="flex-1 px-6 lg:px-10 py-10 max-w-[1280px] mx-auto w-full stagger">
+      <main className="flex-1 px-4 sm:px-6 lg:px-10 py-10 max-w-[1280px] mx-auto w-full stagger">
         <Link
           href="/onboards"
           className="inline-flex items-center gap-1.5 text-[13px] text-ink-3 hover:text-accent transition-colors mb-6"
@@ -88,7 +88,7 @@ export default function OnboardDetailPage({
         </Link>
 
         <header className="mb-6">
-          <div className="flex items-center gap-2 mb-3">
+          <div className="flex flex-wrap items-center gap-2 mb-3">
             {o.is_completed ? (
               <Badge tone="green">сдан</Badge>
             ) : (
@@ -113,7 +113,7 @@ export default function OnboardDetailPage({
           </h1>
         </header>
 
-        <section className="grid grid-cols-3 gap-3 mb-6">
+        <section className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
           <Stat k="Задач" v={String(total)} />
           <Stat k="Готово" v={String(done)} />
           <Stat k="Прогресс" v={`${pct}%`} accent />
@@ -169,7 +169,7 @@ function Stat({
   return (
     <div
       className={cn(
-        "bg-canvas border border-hairline rounded-lg px-5 py-3",
+        "bg-canvas border border-hairline rounded-lg px-4 sm:px-5 py-3",
         accent && "bg-accent-soft border-accent/20"
       )}
     >

@@ -104,7 +104,7 @@ export default function ForgotPasswordPage() {
     <div className="min-h-screen flex flex-col bg-canvas relative">
       <div className="absolute inset-0 bg-dots opacity-60 pointer-events-none" />
 
-      <header className="relative h-14 px-6 lg:px-10 flex items-center justify-between border-b border-hairline">
+      <header className="relative h-14 px-4 sm:px-6 lg:px-10 flex items-center justify-between border-b border-hairline">
         <Logo />
         <div className="flex items-center gap-4">
           <ThemeSwitcher />
@@ -118,10 +118,10 @@ export default function ForgotPasswordPage() {
         </div>
       </header>
 
-      <main className="relative flex-1 grid place-items-center px-6 py-12">
+      <main className="relative flex-1 grid place-items-center px-4 sm:px-6 py-8 sm:py-12">
         <div className="w-full max-w-[420px] anim-rise">
           <header className="mb-8">
-            <h1 className="font-display text-[32px] tracking-tight text-ink">
+            <h1 className="font-display text-[24px] sm:text-[32px] tracking-tight text-ink">
               Восстановление пароля
             </h1>
             <p className="mt-3 text-[15px] text-ink-3">
@@ -205,11 +205,11 @@ export default function ForgotPasswordPage() {
                 />
               </Field>
 
-              <div className="flex items-center justify-between -mt-1">
+              <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 -mt-1">
                 <button
                   type="button"
                   disabled={submitting}
-                  className="text-[13px] text-ink-3 hover:text-ink transition-colors disabled:opacity-40"
+                  className="py-1 text-[13px] text-ink-3 hover:text-ink transition-colors disabled:opacity-40"
                   onClick={() => {
                     setStep("request");
                     setErrors({});
@@ -220,7 +220,7 @@ export default function ForgotPasswordPage() {
                 <button
                   type="button"
                   disabled={submitting}
-                  className="text-[13px] text-accent hover:text-accent-ink transition-colors disabled:opacity-40"
+                  className="py-1 text-[13px] text-accent hover:text-accent-ink transition-colors disabled:opacity-40"
                   onClick={() => requestCode(email)}
                 >
                   Отправить ещё раз
@@ -251,7 +251,7 @@ export default function ForgotPasswordPage() {
         </div>
       </main>
 
-      <footer className="relative px-6 lg:px-10 py-4 text-[12px] text-ink-4 flex items-center justify-between border-t border-hairline">
+      <footer className="relative px-4 sm:px-6 lg:px-10 py-4 text-[12px] text-ink-4 flex flex-wrap gap-y-2 items-center justify-between border-t border-hairline">
         <span>© Qoima · 2026</span>
         <Link className="hover:text-ink-2 transition-colors" href="/login">
           Вернуться ко входу

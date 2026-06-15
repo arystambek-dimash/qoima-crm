@@ -38,23 +38,23 @@ export default function ProfilePage() {
   return (
     <>
       <Topbar eyebrow="Аккаунт" title="Профиль" />
-      <main className="flex-1 px-6 lg:px-10 py-10 max-w-[960px] mx-auto w-full stagger">
+      <main className="flex-1 px-4 sm:px-6 lg:px-10 py-10 max-w-[960px] mx-auto w-full stagger">
         {/* Header */}
-        <header className="mb-8 flex items-center justify-between gap-5">
-          <div className="flex items-center gap-5">
+        <header className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 sm:gap-5">
+          <div className="flex items-center gap-5 min-w-0">
             <Avatar name={name} size={72} className="text-[22px]" />
-            <div>
+            <div className="min-w-0">
               <h1 className="font-display text-[28px] tracking-tight text-ink">
                 {name}
               </h1>
-              <div className="mt-2 flex flex-wrap items-center gap-2">
+              <div className="mt-2 flex flex-wrap items-center gap-2 min-w-0">
                 <Badge tone="purple">
                   <ShieldCheck className="h-2.5 w-2.5" />
                   {user.role}
                 </Badge>
-                <Badge tone="blue">
+                <Badge tone="blue" className="max-w-full">
                   <Mail className="h-2.5 w-2.5" />
-                  {user.email}
+                  <span className="truncate min-w-0">{user.email}</span>
                 </Badge>
                 <Badge tone="gray">@{user.username}</Badge>
               </div>
@@ -63,6 +63,7 @@ export default function ProfilePage() {
           <Button
             variant="danger"
             size="md"
+            className="w-full sm:w-auto"
             onClick={() => {
               logout();
               router.replace("/login");

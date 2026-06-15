@@ -159,7 +159,8 @@ export function TypeCombobox({
         <Popover.Content
           align="start"
           sideOffset={6}
-          className="z-[60] w-[var(--radix-popover-trigger-width)] min-w-[260px] bg-canvas border border-hairline-strong rounded-lg shadow-pop data-[state=open]:anim-fade overflow-hidden"
+          collisionPadding={8}
+          className="z-[60] w-[var(--radix-popover-trigger-width)] min-w-[240px] sm:min-w-[260px] max-w-[calc(100vw-1rem)] bg-canvas border border-hairline-strong rounded-lg shadow-pop data-[state=open]:anim-fade overflow-hidden"
           onOpenAutoFocus={(e) => e.preventDefault()}
         >
           <div className="px-2 pt-2">
@@ -240,7 +241,7 @@ export function TypeCombobox({
               </li>
             )}
           </ul>
-          <div className="border-t border-hairline px-2.5 py-1.5 flex items-center gap-3 text-[11px] text-ink-4 bg-surface/40">
+          <div className="border-t border-hairline px-2.5 py-1.5 hidden sm:flex flex-wrap items-center gap-3 text-[11px] text-ink-4 bg-surface/40">
             <span className="flex items-center gap-1">
               <kbd className="px-1 py-px text-[10px] bg-canvas border border-hairline rounded font-mono">
                 ↑↓

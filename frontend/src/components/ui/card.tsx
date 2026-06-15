@@ -79,7 +79,7 @@ export function StatCard({
   return (
     <div
       className={cn(
-        "group relative bg-canvas border border-hairline rounded-lg p-5 flex flex-col gap-3 transition-colors hover:border-hairline-strong",
+        "group relative bg-canvas border border-hairline rounded-lg p-4 sm:p-5 flex flex-col gap-3 transition-colors hover:border-hairline-strong",
         accent && "bg-accent-soft border-accent/20"
       )}
     >
@@ -98,7 +98,7 @@ export function StatCard({
       </div>
       <div
         className={cn(
-          "font-display text-[30px] leading-[1.1] tracking-tight tabular-nums",
+          "font-display text-[24px] sm:text-[30px] leading-[1.1] tracking-tight tabular-nums",
           accent ? "text-accent-ink" : "text-ink"
         )}
       >

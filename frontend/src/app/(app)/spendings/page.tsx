@@ -164,7 +164,7 @@ export default function SpendingsPage() {
           ) : undefined
         }
       />
-      <main className="flex-1 px-6 lg:px-10 py-10 max-w-[1280px] mx-auto w-full">
+      <main className="flex-1 px-4 sm:px-6 lg:px-10 py-6 sm:py-10 max-w-[1280px] mx-auto w-full">
         <header className="mb-8 anim-rise">
           <h1 className="font-display text-[28px] tracking-tight text-ink">
             Расходы
@@ -212,7 +212,7 @@ export default function SpendingsPage() {
               className="pl-9"
             />
           </div>
-          <div>
+          <div className="w-full md:w-auto">
             <label className="text-[12px] font-medium text-ink-2 mb-1.5 block">
               С даты
             </label>
@@ -220,10 +220,10 @@ export default function SpendingsPage() {
               type="date"
               value={fromDate}
               onChange={(e) => setFromDate(e.target.value)}
-              className="w-[160px]"
+              className="w-full md:w-[160px]"
             />
           </div>
-          <div>
+          <div className="w-full md:w-auto">
             <label className="text-[12px] font-medium text-ink-2 mb-1.5 block">
               По дату
             </label>
@@ -231,7 +231,7 @@ export default function SpendingsPage() {
               type="date"
               value={toDate}
               onChange={(e) => setToDate(e.target.value)}
-              className="w-[160px]"
+              className="w-full md:w-[160px]"
             />
           </div>
           {filtersActive && (
@@ -288,7 +288,7 @@ export default function SpendingsPage() {
                 </p>
               ) : (
                 <div className="flex flex-col xl:flex-row items-center gap-6">
-                  <div className="h-[200px] w-[200px] relative shrink-0">
+                  <div className="h-[160px] w-[160px] sm:h-[200px] sm:w-[200px] relative shrink-0">
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie
@@ -338,13 +338,13 @@ export default function SpendingsPage() {
                               setActiveType(isActive ? null : b.name)
                             }
                             className={cn(
-                              "w-full flex items-center justify-between px-3 h-9 text-left transition-colors rounded-md",
+                              "w-full flex items-center justify-between px-3 h-9 text-left transition-colors rounded-md min-w-0",
                               isActive
                                 ? "bg-accent-soft text-ink"
                                 : "hover:bg-surface-2 text-ink-2"
                             )}
                           >
-                            <span className="flex items-center gap-2 text-[13px]">
+                            <span className="flex items-center gap-2 text-[13px] min-w-0">
                               <span
                                 className="text-[14px] leading-none"
                                 aria-hidden
@@ -355,7 +355,7 @@ export default function SpendingsPage() {
                                 className="h-1.5 w-1.5 rounded-full shrink-0"
                                 style={{ background: colorFor(b.name) }}
                               />
-                              <span className="text-ink">
+                              <span className="text-ink truncate">
                                 {labelFor(b.name)}
                               </span>
                             </span>
@@ -478,8 +478,8 @@ export default function SpendingsPage() {
                 <TH>Название</TH>
                 <TH>Категория</TH>
                 <TH className="text-right">Сумма</TH>
-                <TH>Дата</TH>
-                <TH>Заметка</TH>
+                <TH className="hidden md:table-cell">Дата</TH>
+                <TH className="hidden md:table-cell">Заметка</TH>
                 <TH className="w-20"></TH>
               </TR>
             </THead>
@@ -543,11 +543,11 @@ function SpendingRow({
       <TD className="text-right font-medium tabular-nums">
         {formatCurrency(s.amount)}
       </TD>
-      <TD className="text-ink-3 tabular-nums">{formatDate(s.date_spend)}</TD>
-      <TD className="text-ink-3 max-w-[280px] truncate">{s.note || "—"}</TD>
+      <TD className="hidden md:table-cell text-ink-3 tabular-nums">{formatDate(s.date_spend)}</TD>
+      <TD className="hidden md:table-cell text-ink-3 max-w-[140px] sm:max-w-[280px] truncate">{s.note || "—"}</TD>
       <TD>
         {showActions && (
-          <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="flex items-center justify-end gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
             {canEdit && (
               <SpendingFormDialog
                 initial={s}
@@ -599,7 +599,7 @@ function Stat({
       <div className="text-[12px] text-ink-3 mb-1">{label}</div>
       <div
         className={cn(
-          "font-display text-[22px] tabular-nums",
+          "font-display text-[18px] sm:text-[22px] tabular-nums break-words",
           accent ? "text-accent-ink" : "text-ink"
         )}
       >

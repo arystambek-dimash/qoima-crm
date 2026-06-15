@@ -53,6 +53,7 @@ import {
   Pencil,
   Search,
   Trash2,
+  Wallet,
   X,
 } from "lucide-react";
 import type {
@@ -141,7 +142,7 @@ export default function DealDetailPage({
     return (
       <>
         <Topbar eyebrow="Работа" title="Заказ не найден" />
-        <main className="flex-1 px-8 py-12 max-w-[1080px] mx-auto w-full">
+        <main className="flex-1 px-4 sm:px-8 py-12 max-w-[1080px] mx-auto w-full">
           <Link
             href="/deals"
             className="inline-flex items-center gap-2 text-ink-3 hover:text-accent"
@@ -174,7 +175,8 @@ export default function DealDetailPage({
                   size="sm"
                   onClick={() => setEditOpen(true)}
                 >
-                  Редактировать
+                  <Pencil className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Редактировать</span>
                 </Button>
               )}
               {canManagePayments && (
@@ -183,7 +185,8 @@ export default function DealDetailPage({
                   size="sm"
                   onClick={() => setPayDialogOpen(true)}
                 >
-                  Зафиксировать платёж
+                  <Wallet className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Зафиксировать платёж</span>
                 </Button>
               )}
             </div>
@@ -203,7 +206,7 @@ export default function DealDetailPage({
         open={editOpen}
         onOpenChange={setEditOpen}
       />
-      <main className="flex-1 px-6 lg:px-10 py-10 max-w-[1080px] mx-auto w-full stagger">
+      <main className="flex-1 px-4 sm:px-6 lg:px-10 py-10 max-w-[1080px] mx-auto w-full stagger">
         <Link
           href="/deals"
           className="inline-flex items-center gap-1.5 text-[13px] text-ink-3 hover:text-accent transition-colors mb-6"
@@ -219,7 +222,7 @@ export default function DealDetailPage({
             <Badge tone="gray">{paymentTypeLabel(d.payment_type)}</Badge>
             {d.payment_completed && <Badge tone="green">оплачено</Badge>}
           </div>
-          <h1 className="font-display text-[28px] tracking-tight text-ink text-balance">
+          <h1 className="font-display text-[22px] sm:text-[28px] tracking-tight text-ink text-balance">
             {d.client_name}
           </h1>
           <p className="mt-2 text-[14px] text-ink-3">
@@ -229,7 +232,7 @@ export default function DealDetailPage({
         </header>
 
         {/* Money summary */}
-        <section className="grid grid-cols-3 gap-3 mb-6">
+        <section className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
           <Money k="Сумма заказа" v={formatCurrency(d.deal_amount)} />
           <Money k="Оплачено" v={formatCurrency(d.paid_to_date)} accent />
           <Money k="Остаток" v={formatCurrency(d.remaining)} />
@@ -455,8 +458,8 @@ function CollaboratorsRow({ deal }: { deal: Deal }) {
   if (extras.length === 0) return null;
 
   return (
-    <div className="flex items-start justify-between gap-4 border-b border-hairline py-2.5 last:border-0">
-      <span className="text-ink-3 w-[40%] shrink-0">Совместный доступ</span>
+    <div className="flex flex-col sm:flex-row items-start sm:justify-between gap-4 border-b border-hairline py-2.5 last:border-0">
+      <span className="text-ink-3 w-full sm:w-[40%] shrink-0">Совместный доступ</span>
       <div className="flex-1 flex flex-wrap justify-end gap-1.5">
         {extras.map((u) => {
           const name =
@@ -1155,10 +1158,10 @@ function TasksList({
             <TH className="w-[90px]">Ключ</TH>
             <TH>Название</TH>
             <TH>Статус</TH>
-            <TH>Согласование</TH>
-            <TH>Приоритет</TH>
-            <TH>Категория</TH>
-            <TH>Исполнитель</TH>
+            <TH className="hidden lg:table-cell">Согласование</TH>
+            <TH className="hidden lg:table-cell">Приоритет</TH>
+            <TH className="hidden lg:table-cell">Категория</TH>
+            <TH className="hidden lg:table-cell">Исполнитель</TH>
             <TH>Срок</TH>
           </TR>
         </THead>
@@ -1198,7 +1201,7 @@ function TasksList({
                     {TASK_COLUMNS.find((c) => c.key === status)?.label ?? status}
                   </Badge>
                 </TD>
-                <TD>
+                <TD className="hidden lg:table-cell">
                   {chip ? (
                     <Badge tone={chip.tone} dot>
                       {chip.short}
@@ -1207,13 +1210,13 @@ function TasksList({
                     <span className="text-ink-4 text-[12px]">—</span>
                   )}
                 </TD>
-                <TD>
+                <TD className="hidden lg:table-cell">
                   <Badge tone={PRIORITY_TONE[priority]}>
                     {PRIORITY_LABEL[priority]}
                   </Badge>
                 </TD>
-                <TD className="text-ink-3 text-[13px]">{catName(t.category)}</TD>
-                <TD>
+                <TD className="hidden lg:table-cell text-ink-3 text-[13px]">{catName(t.category)}</TD>
+                <TD className="hidden lg:table-cell">
                   {t.assignee ? (
                     <div className="flex items-center gap-2">
                       <Avatar
@@ -1306,7 +1309,7 @@ function PaymentsTab({
           <Table>
             <THead>
               <TR>
-                <TH className="w-12">#</TH>
+                <TH className="hidden sm:table-cell w-12">#</TH>
                 <TH>Дата</TH>
                 <TH className="text-right">Сумма</TH>
                 <TH>Статус</TH>
@@ -1326,7 +1329,7 @@ function PaymentsTab({
                   : { tone: "gray", label: "запланирован" };
                 return (
                   <TR key={p.id}>
-                    <TD className="text-ink-3 tabular-nums">
+                    <TD className="hidden sm:table-cell text-ink-3 tabular-nums">
                       {String(i + 1).padStart(2, "0")}
                     </TD>
                     <TD className="text-ink-2 tabular-nums">
@@ -1579,7 +1582,7 @@ function Money({
   return (
     <div
       className={cn(
-        "bg-canvas border border-hairline rounded-lg px-5 py-4",
+        "bg-canvas border border-hairline rounded-lg px-4 sm:px-5 py-4",
         accent && "bg-accent-soft border-accent/20"
       )}
     >

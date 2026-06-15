@@ -170,7 +170,7 @@ export default function DealsPage() {
               trigger={
                 <Button variant="primary" size="sm">
                   <Plus className="h-3.5 w-3.5" />
-                  Новый заказ
+                  <span className="hidden sm:inline">Новый заказ</span>
                 </Button>
               }
             />
@@ -178,9 +178,9 @@ export default function DealsPage() {
         }
       />
 
-      <main className="flex-1 px-6 lg:px-10 py-10 max-w-[1280px] mx-auto w-full">
+      <main className="flex-1 px-4 sm:px-6 lg:px-10 py-6 md:py-10 max-w-[1280px] mx-auto w-full">
         <header className="mb-8 anim-rise">
-          <h1 className="font-display text-[28px] tracking-tight text-ink">
+          <h1 className="font-display text-[22px] sm:text-[28px] tracking-tight text-ink">
             {isCollaborator ? "Ваши заказы" : "Заказы"}
           </h1>
           <p className="mt-2 text-[14px] text-ink-3">
@@ -207,8 +207,8 @@ export default function DealsPage() {
               className="pl-9"
             />
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="flex bg-surface-2 border border-hairline rounded-md p-0.5">
+          <div className="flex items-center gap-2 overflow-x-auto scrollbar-thin -mx-4 px-4 md:mx-0 md:px-0 md:flex-wrap">
+            <div className="flex bg-surface-2 border border-hairline rounded-md p-0.5 shrink-0">
               <StatusChip
                 active={status === "all"}
                 onClick={() => setStatus("all")}
@@ -236,7 +236,7 @@ export default function DealsPage() {
                 />
               )}
             </div>
-            <div className="flex bg-surface-2 border border-hairline rounded-md p-0.5">
+            <div className="flex bg-surface-2 border border-hairline rounded-md p-0.5 shrink-0">
               <ViewChip
                 active={view === "table"}
                 onClick={() => setView("table")}
@@ -295,7 +295,7 @@ export default function DealsPage() {
                     dir={sortDir}
                     onClick={toggleSort}
                   />
-                  <TH>Оплата</TH>
+                  <TH className="hidden sm:table-cell">Оплата</TH>
                   <SortableHeader
                     label="Сумма"
                     sortKey="amount"
@@ -312,6 +312,7 @@ export default function DealsPage() {
                       dir={sortDir}
                       onClick={toggleSort}
                       align="right"
+                      className="hidden sm:table-cell"
                     />
                   )}
                   <SortableHeader
@@ -388,6 +389,7 @@ function SortableHeader({
   dir,
   onClick,
   align,
+  className,
 }: {
   label: string;
   sortKey: SortKey;
@@ -395,10 +397,11 @@ function SortableHeader({
   dir: SortDir;
   onClick: (k: SortKey) => void;
   align?: "right";
+  className?: string;
 }) {
   const isActive = activeKey === sortKey;
   return (
-    <TH className={cn(align === "right" && "text-right")}>
+    <TH className={cn(align === "right" && "text-right", className)}>
       <button
         type="button"
         onClick={() => onClick(sortKey)}
@@ -507,7 +510,7 @@ function Stat({
       <div className="text-[12px] text-ink-3 mb-1">{label}</div>
       <div
         className={cn(
-          "font-display text-[22px] tabular-nums",
+          "font-display text-[18px] sm:text-[22px] tabular-nums break-words",
           accent ? "text-accent-ink" : "text-ink"
         )}
       >
@@ -561,7 +564,7 @@ function DealRow({
       <TD>
         <StatusBadge stage={d.stage} />
       </TD>
-      <TD>
+      <TD className="hidden sm:table-cell">
         <div className="flex items-center gap-1.5 flex-wrap">
           <Badge tone="gray">{plLabel(d.payment_type)}</Badge>
           {d.payment_completed && <Badge tone="green">оплачено</Badge>}
@@ -571,7 +574,7 @@ function DealRow({
         {formatCurrency(d.deal_amount)}
       </TD>
       {hasPaidData && (
-        <TD className="text-right tabular-nums">
+        <TD className="hidden sm:table-cell text-right tabular-nums">
           <div className="flex flex-col items-end leading-tight">
             <span className="text-ink-2">
               {formatCurrency(d.paid_to_date)}
@@ -648,7 +651,7 @@ function EmptyDeals({
   canCreate: boolean;
 }) {
   return (
-    <Panel className="p-14 text-center anim-fade">
+    <Panel className="p-8 sm:p-14 text-center anim-fade">
       <div className="mx-auto h-12 w-12 grid place-items-center bg-surface-2 rounded-lg mb-3">
         <Briefcase className="h-5 w-5 text-ink-3" />
       </div>
@@ -682,7 +685,7 @@ function NoMatch({
   isCollaborator: boolean;
 }) {
   return (
-    <Panel className="p-12 text-center anim-fade">
+    <Panel className="p-8 sm:p-12 text-center anim-fade">
       <div className="mx-auto h-12 w-12 grid place-items-center bg-surface-2 rounded-lg mb-3">
         <Search className="h-5 w-5 text-ink-3" />
       </div>
@@ -861,7 +864,7 @@ function BoardColumn({
 }) {
   const total = list.reduce((a, d) => a + Number(d.deal_amount), 0);
   return (
-    <div className="bg-surface-2 border border-hairline rounded-xl flex flex-col w-[320px] shrink-0 max-h-[calc(100vh-280px)]">
+    <div className="bg-surface-2 border border-hairline rounded-xl flex flex-col w-[85vw] max-w-[320px] sm:w-[320px] shrink-0 max-h-[70vh] md:max-h-[calc(100vh-280px)]">
       <div className="flex items-center justify-between px-3 pt-3 pb-2">
         <div className="flex items-center gap-2 min-w-0">
           <StatusBadge stage={stageKey} />

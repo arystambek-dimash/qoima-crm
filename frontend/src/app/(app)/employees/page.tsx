@@ -89,7 +89,7 @@ export default function EmployeesPage() {
           ) : undefined
         }
       />
-      <main className="flex-1 px-6 lg:px-10 py-10 max-w-[1280px] mx-auto w-full">
+      <main className="flex-1 px-4 sm:px-6 lg:px-10 py-6 sm:py-10 max-w-[1280px] mx-auto w-full">
         <header className="mb-8 anim-rise">
           <h1 className="font-display text-[28px] tracking-tight text-ink">
             Команда
@@ -164,9 +164,9 @@ export default function EmployeesPage() {
               <THead>
                 <TR>
                   <TH>Имя</TH>
-                  <TH>Должность</TH>
+                  <TH className="hidden md:table-cell">Должность</TH>
                   <TH className="text-right">Зарплата</TH>
-                  <TH>Права</TH>
+                  <TH className="hidden md:table-cell">Права</TH>
                   <TH className="w-10"></TH>
                 </TR>
               </THead>
@@ -203,9 +203,9 @@ function Header({ data }: { data: Employee[] }) {
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="bg-canvas border border-hairline rounded-lg px-4 py-3">
+    <div className="bg-canvas border border-hairline rounded-lg px-3 sm:px-4 py-3">
       <div className="text-[12px] text-ink-3 mb-1">{label}</div>
-      <div className="font-display text-[22px] tabular-nums text-ink">
+      <div className="font-display text-[18px] sm:text-[22px] tabular-nums text-ink break-words">
         {value}
       </div>
     </div>
@@ -241,7 +241,7 @@ function EmployeeRow({ e }: { e: Employee }) {
           </div>
         </Link>
       </TD>
-      <TD>
+      <TD className="hidden md:table-cell">
         <div className="flex items-center gap-2">
           <span className="text-ink-2">{e.role || "—"}</span>
           {isAdmin && (
@@ -255,7 +255,7 @@ function EmployeeRow({ e }: { e: Employee }) {
       <TD className="text-right font-medium tabular-nums">
         {formatCurrency(e.salary)}
       </TD>
-      <TD>
+      <TD className="hidden md:table-cell">
         <PermissionBars employee={e} />
       </TD>
       <TD>
@@ -275,7 +275,7 @@ function PermissionBars({ employee }: { employee: Employee }) {
   const granted = EMPLOYEE_PERMISSION_FIELDS.filter((f) => employee[f]).length;
   return (
     <div className="flex items-center gap-3">
-      <div className="flex items-center gap-0.5">
+      <div className="hidden sm:flex items-center gap-0.5">
         {EMPLOYEE_PERMISSION_FIELDS.map((f) => (
           <div
             key={f}

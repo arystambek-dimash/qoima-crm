@@ -14,6 +14,7 @@ import { onboards } from "@/lib/endpoints";
 import { asApiError } from "@/lib/api";
 import { useIsSuperuser, useRole } from "@/lib/permissions";
 import { cn, formatBytes } from "@/lib/utils";
+import { VoiceRecorder } from "@/components/voice-recorder";
 import { Info, Loader2, Paperclip, Plus, X } from "lucide-react";
 import type {
   OnboardTaskCreate,
@@ -244,7 +245,7 @@ export function AddTaskDialog({
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="Тип">
               <select
                 className="h-9 w-full bg-canvas border border-hairline-strong rounded-md px-3 text-[14px] text-ink hover:border-ink-5 focus:border-accent focus:shadow-[0_0_0_3px_rgba(35,131,226,0.18)] outline-none transition-all cursor-pointer"
@@ -287,6 +288,10 @@ export function AddTaskDialog({
           </Field>
 
           <AttachmentPicker files={files} onChange={setFiles} />
+
+          <VoiceRecorder
+            onRecorded={(audio) => setFiles((prev) => [...prev, audio])}
+          />
 
           <div className="flex items-center justify-end gap-2 pt-3 border-t border-hairline">
             <Button

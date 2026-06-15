@@ -137,7 +137,7 @@ export default function EmployeeDetailPage({
     return (
       <>
         <Topbar eyebrow="Команда" title="Не найдено" />
-        <main className="p-12 max-w-[1080px] mx-auto">
+        <main className="p-6 sm:p-12 max-w-[1080px] mx-auto">
           <Link
             href="/employees"
             className="text-ink-3 hover:text-accent inline-flex items-center gap-2"
@@ -170,7 +170,7 @@ export default function EmployeeDetailPage({
           </Button>
         }
       />
-      <main className="flex-1 px-6 lg:px-10 py-10 max-w-[1080px] mx-auto w-full stagger">
+      <main className="flex-1 px-4 sm:px-6 lg:px-10 py-6 sm:py-10 max-w-[1080px] mx-auto w-full stagger">
         <Link
           href="/employees"
           className="inline-flex items-center gap-1.5 text-[13px] text-ink-3 hover:text-accent transition-colors mb-6"
@@ -180,20 +180,20 @@ export default function EmployeeDetailPage({
         </Link>
 
         {/* Header */}
-        <header className="mb-8 flex items-center gap-5">
+        <header className="mb-8 flex items-center gap-3 sm:gap-5">
           <Avatar
             name={userDisplayName(e.user)}
             size={64}
             className="text-[20px]"
           />
-          <div>
-            <h1 className="font-display text-[28px] tracking-tight text-ink">
+          <div className="min-w-0">
+            <h1 className="font-display text-[22px] sm:text-[28px] tracking-tight text-ink">
               {userDisplayName(e.user)}
             </h1>
             {userEmail(e.user) && (
               <p className="text-[13px] text-ink-3 mt-1">{userEmail(e.user)}</p>
             )}
-            <div className="flex items-center gap-2 mt-2">
+            <div className="flex items-center flex-wrap gap-2 mt-2">
               <Badge tone="gray">{e.role || "—"}</Badge>
               <Badge tone="purple">
                 <ShieldCheck className="h-2.5 w-2.5" />
@@ -228,9 +228,9 @@ export default function EmployeeDetailPage({
                         htmlFor={f}
                         className="flex items-center justify-between px-4 h-12 cursor-pointer hover:bg-surface transition-colors first:rounded-t-md last:rounded-b-md"
                       >
-                        <div className="flex flex-col leading-tight">
-                          <span className="text-[14px] text-ink">{label}</span>
-                          <span className="text-[12px] text-ink-4 font-mono">
+                        <div className="flex flex-col leading-tight min-w-0">
+                          <span className="text-[14px] text-ink truncate">{label}</span>
+                          <span className="text-[12px] text-ink-4 font-mono hidden sm:block">
                             {f}
                           </span>
                         </div>

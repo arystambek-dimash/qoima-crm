@@ -112,7 +112,7 @@ export default function WalletsPage() {
         }
       />
 
-      <main className="flex-1 px-6 lg:px-10 py-10 max-w-[1280px] mx-auto w-full">
+      <main className="flex-1 px-4 sm:px-6 lg:px-10 py-6 sm:py-10 max-w-[1280px] mx-auto w-full">
         <header className="mb-8 anim-rise">
           <h1 className="font-display text-[28px] tracking-tight text-ink">
             Кошелёк компании
@@ -171,7 +171,7 @@ export default function WalletsPage() {
         <div className="grid grid-cols-1 xl:grid-cols-[1.4fr_1fr] gap-4">
           {/* Wallets list */}
           <Panel className="anim-fade">
-            <PanelHeader>
+            <PanelHeader className="flex-wrap gap-2">
               <PanelTitle>Все кошельки</PanelTitle>
               <div className="relative">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-ink-4" />
@@ -179,7 +179,7 @@ export default function WalletsPage() {
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Найти…"
-                  className="h-7 pl-7 text-[12px] w-[180px]"
+                  className="h-7 pl-7 text-[12px] w-[120px] sm:w-[180px]"
                 />
               </div>
             </PanelHeader>
@@ -187,7 +187,7 @@ export default function WalletsPage() {
               <THead>
                 <TR>
                   <TH>Название</TH>
-                  <TH>Статус</TH>
+                  <TH className="hidden sm:table-cell">Статус</TH>
                   <TH className="text-right">Остаток</TH>
                   <TH className="w-24"></TH>
                 </TR>
@@ -246,7 +246,7 @@ export default function WalletsPage() {
                   </p>
                 </div>
               )}
-              <ul className="divide-y divide-[var(--color-hairline)] max-h-[640px] overflow-y-auto scrollbar-thin">
+              <ul className="divide-y divide-[var(--color-hairline)] max-h-none sm:max-h-[640px] sm:overflow-y-auto scrollbar-thin">
                 {recentLogs.map((log) => (
                   <LogRow key={log.id} log={log} />
                 ))}
@@ -282,7 +282,7 @@ function CurrentWalletCard({ wallet }: { wallet: Wallet | undefined }) {
         </span>
         <Badge tone="blue">{wallet.name}</Badge>
       </div>
-      <div className="font-display text-[34px] leading-[1.05] tracking-tight tabular-nums text-accent-ink relative">
+      <div className="font-display text-[26px] sm:text-[34px] leading-[1.05] tracking-tight tabular-nums text-accent-ink relative break-words">
         {formatCurrency(wallet.balance)}
       </div>
       <div className="text-[12px] text-accent-ink/80 relative">
@@ -317,7 +317,7 @@ function SummaryCard({
           </span>
         )}
       </div>
-      <div className="font-display text-[28px] leading-[1.1] tracking-tight tabular-nums text-ink">
+      <div className="font-display text-[22px] sm:text-[28px] leading-[1.1] tracking-tight tabular-nums text-ink break-words">
         {value}
       </div>
       {caption && (
@@ -376,7 +376,7 @@ function WalletRow({
           </div>
         </div>
       </TD>
-      <TD>
+      <TD className="hidden sm:table-cell">
         <div className="flex items-center gap-1.5">
           {wallet.is_default && (
             <Badge tone="blue">
@@ -400,7 +400,7 @@ function WalletRow({
       </TD>
       <TD>
         {hasActions && (
-          <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="flex items-center justify-end gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
             {canEdit && (
               <WalletFormDialog
                 initial={wallet}
@@ -445,7 +445,7 @@ function LogRow({ log }: { log: WalletLog }) {
     : "Система";
 
   return (
-    <li className="px-5 py-3 flex items-start gap-3 hover:bg-surface transition-colors">
+    <li className="px-5 py-3 flex items-start gap-3 hover:bg-surface transition-colors min-w-0">
       <div
         className={cn(
           "h-8 w-8 grid place-items-center rounded-md shrink-0",
@@ -490,7 +490,7 @@ function LogRow({ log }: { log: WalletLog }) {
       </div>
       <div
         className={cn(
-          "text-right tabular-nums font-medium text-[13px] whitespace-nowrap",
+          "text-right tabular-nums font-medium text-[13px] sm:whitespace-nowrap shrink-0",
           isPositive ? "text-success" : isNegative ? "text-danger" : "text-ink-3"
         )}
       >

@@ -67,7 +67,7 @@ export default function LoginPage() {
       <div className="absolute inset-0 bg-dots opacity-60 pointer-events-none" />
 
       {/* Top bar */}
-      <header className="relative h-14 px-6 lg:px-10 flex items-center justify-between border-b border-hairline">
+      <header className="relative h-14 px-4 sm:px-6 lg:px-10 flex items-center justify-between border-b border-hairline">
         <Logo />
         <div className="flex items-center gap-4">
           <ThemeSwitcher />
@@ -80,10 +80,10 @@ export default function LoginPage() {
         </div>
       </header>
 
-      <main className="relative flex-1 grid place-items-center px-6 py-12">
+      <main className="relative flex-1 grid place-items-center px-4 sm:px-6 py-8 sm:py-12">
         <div className="w-full max-w-[400px] anim-rise">
           <header className="mb-8">
-            <h1 className="font-display text-[32px] tracking-tight text-ink">
+            <h1 className="font-display text-[26px] sm:text-[32px] tracking-tight text-ink">
               С возвращением.
             </h1>
             <p className="mt-3 text-[15px] text-ink-3">
@@ -115,7 +115,7 @@ export default function LoginPage() {
             </Field>
 
             <div className="flex items-center justify-between -mt-1">
-              <label className="flex items-center gap-2 text-[13px] text-ink-3 cursor-pointer select-none">
+              <label className="flex items-center gap-2 py-1 text-[13px] text-ink-3 cursor-pointer select-none">
                 <input
                   type="checkbox"
                   className="appearance-none h-3.5 w-3.5 border border-hairline-strong bg-canvas rounded checked:bg-accent checked:border-accent relative cursor-pointer"
@@ -160,7 +160,7 @@ export default function LoginPage() {
         </div>
       </main>
 
-      <footer className="relative px-6 lg:px-10 py-4 text-[12px] text-ink-4 flex items-center justify-between border-t border-hairline">
+      <footer className="relative px-4 sm:px-6 lg:px-10 py-4 text-[12px] text-ink-4 flex flex-wrap gap-y-2 items-center justify-between border-t border-hairline">
         <span>© Qoima · 2026</span>
         <div className="flex items-center gap-4">
           <a className="hover:text-ink-2 transition-colors" href="#">

@@ -297,7 +297,7 @@ function CategoryColumn({
   });
 
   return (
-    <div className="bg-surface-2 border border-hairline rounded-xl flex flex-col w-[300px] shrink-0 max-h-[calc(100vh-280px)]">
+    <div className="bg-surface-2 border border-hairline rounded-xl flex flex-col w-[280px] sm:w-[300px] shrink-0 max-h-[calc(100dvh-180px)] md:max-h-[calc(100vh-280px)]">
       {/* Column header */}
       <div className="flex items-center justify-between gap-2 px-3 pt-3 pb-2">
         {renaming ? (
@@ -457,7 +457,7 @@ function AddColumn({ onboardId }: { onboardId: number }) {
       <button
         type="button"
         onClick={() => setAdding(true)}
-        className="w-[300px] shrink-0 h-10 grid place-items-center text-[13px] text-ink-3 hover:text-ink bg-surface/60 hover:bg-surface border border-dashed border-hairline-strong rounded-xl transition-colors"
+        className="w-[280px] sm:w-[300px] shrink-0 h-10 grid place-items-center text-[13px] text-ink-3 hover:text-ink bg-surface/60 hover:bg-surface border border-dashed border-hairline-strong rounded-xl transition-colors"
       >
         <span className="inline-flex items-center gap-1.5">
           <Plus className="h-3.5 w-3.5" />
@@ -469,7 +469,7 @@ function AddColumn({ onboardId }: { onboardId: number }) {
 
   return (
     <form
-      className="bg-surface-2 border border-hairline-strong rounded-xl p-2 w-[300px] shrink-0 flex items-center gap-1"
+      className="bg-surface-2 border border-hairline-strong rounded-xl p-2 w-[280px] sm:w-[300px] shrink-0 flex items-center gap-1"
       onSubmit={(e) => {
         e.preventDefault();
         if (name.trim()) create.mutate(name.trim());
