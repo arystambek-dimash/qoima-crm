@@ -1,8 +1,9 @@
-from core.permissions import IsCollaborator, DealPermissions
+from core.permissions import DealPermissions, IsCollaborator, is_scoped_collaborator
 from core.views import BasePermissionMixin, BaseSerializerMixin
 from decimal import Decimal
-from django.db.models import DecimalField, F, Sum
+from django.db.models import DecimalField, F, Q, Sum
 from django.db.models.functions import Coalesce
+from django_filters import rest_framework as django_filters
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters, mixins, status, viewsets
 from rest_framework.decorators import action
@@ -11,6 +12,19 @@ from rest_framework.response import Response
 from src.deals.models import Deal
 from src.deals.serializers import DealFileSerializer, DealPaymentSerializer
 from src.deals.serializers import DealSerializer
+
+
+class DealFilter(django_filters.FilterSet):
+    user = django_filters.NumberFilter(method="filter_user")
+
+    class Meta:
+        model = Deal
+        fields = ("user", "stage", "is_active")
+
+    def filter_user(self, queryset, name, value):
+        return queryset.filter(
+            Q(user_id=value) | Q(collaborators__id=value),
+        ).distinct()
 
 
 # Create your views here.
@@ -39,7 +53,7 @@ class DealViewSet(
         filters.SearchFilter,
         filters.OrderingFilter,
     )
-    filterset_fields = ("user", "stage", "is_active")
+    filterset_class = DealFilter
     search_fields = (
         "user__username",
         "user__email",
@@ -58,9 +72,9 @@ class DealViewSet(
     def get_queryset(self):
         zero_amount = Decimal("0.00")
 
-        return (
+        queryset = (
             Deal.objects.select_related("user")
-            .prefetch_related("files", "payments")
+            .prefetch_related("collaborators", "files", "payments")
             .annotate(
                 paid_to_date=Coalesce(
                     Sum("payments__amount"),
@@ -71,7 +85,27 @@ class DealViewSet(
             .annotate(
                 remaining=F("deal_amount") - F("paid_to_date"),
             )
+            .order_by("id")
         )
+
+        user = self.request.user
+        if is_scoped_collaborator(user):
+            queryset = queryset.filter(
+                Q(user=user) | Q(collaborators=user),
+            ).distinct()
+
+        return queryset
+
+    def perform_create(self, serializer):
+        if is_scoped_collaborator(self.request.user):
+            deal = serializer.save(user=self.request.user)
+            deal.collaborators.set([self.request.user])
+            return
+
+        deal = serializer.save()
+
+        if deal.user_id:
+            deal.collaborators.add(deal.user)
 
     @action(detail=True, methods=["post"], url_path="files")
     def create_file(self, request, *args, **kwargs):

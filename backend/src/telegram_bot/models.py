@@ -17,6 +17,36 @@ class TelegramChat(models.Model):
         return self.title or str(self.chat_id)
 
 
+class TelegramBotConfig(models.Model):
+    name = models.CharField(max_length=120, unique=True, default="default")
+    task_approval_chat = models.ForeignKey(
+        TelegramChat,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="bot_configs",
+    )
+    settings = models.JSONField(blank=True, default=dict)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("-updated_at",)
+
+    def __str__(self):
+        return self.name
+
+    @classmethod
+    def active(cls):
+        return (
+            cls.objects.select_related("task_approval_chat")
+            .filter(is_active=True)
+            .order_by("-updated_at")
+            .first()
+        )
+
+
 class TelegramAccount(models.Model):
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,

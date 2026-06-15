@@ -11,7 +11,15 @@ class Deal(models.Model):
         settings.AUTH_USER_MODEL,
         limit_choices_to={"role": UserRole.COLLABORATOR},
         on_delete=models.CASCADE,
-        null=True
+        null=True,
+        blank=True,
+        related_name="primary_deals",
+    )
+    collaborators = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        blank=True,
+        limit_choices_to={"role": UserRole.COLLABORATOR},
+        related_name="collaborator_deals",
     )
     stage = models.CharField(max_length=120)
     date_start = models.DateField(default=date.today)
@@ -26,6 +34,18 @@ class Deal(models.Model):
     )
     is_active = models.BooleanField(default=True)
     payment_completed = models.BooleanField(default=False)
+
+    def has_collaborator(self, user):
+        if not user or not user.is_authenticated:
+            return False
+
+        if self.user_id == user.id:
+            return True
+
+        if not self.pk:
+            return False
+
+        return self.collaborators.filter(pk=user.pk).exists()
 
 
 class DealFile(models.Model):

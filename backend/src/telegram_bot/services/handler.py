@@ -10,6 +10,7 @@ from src.telegram_bot.models import (
 )
 from src.telegram_bot.services.parser import CommandParseError, CommandParser
 from src.telegram_bot.services.reports import ReportBuilder
+from src.telegram_bot.services.task_approval import TelegramTaskApprovalService
 from src.telegram_bot.services.telegram import TelegramClient
 from src.wallets.models import Wallet, WalletLog
 from src.wallets.services import record_income_created, record_spending_created
@@ -27,6 +28,9 @@ class TelegramBotService:
 
         if existing:
             return {"duplicate": True, "response": existing.response}
+
+        if update.get("callback_query"):
+            return self._handle_callback_query(update_id, update["callback_query"])
 
         message = update.get("message") or update.get("edited_message") or {}
         text = message.get("text", "")
@@ -124,6 +128,72 @@ class TelegramBotService:
             error=error,
             created_object_type=created_object._meta.label if created_object else "",
             created_object_id=str(created_object.pk) if created_object else "",
+        )
+
+        return {"duplicate": False, "log_id": log.id, "status": status}
+
+    def _handle_callback_query(self, update_id, callback_query: dict) -> dict:
+        message = callback_query.get("message") or {}
+        chat_data = message.get("chat") or {}
+        from_data = callback_query.get("from") or {}
+        data = callback_query.get("data", "")
+        callback_id = callback_query.get("id")
+        chat = self._upsert_chat(chat_data)
+        user = self._user(from_data)
+        command_name = "callback"
+        response = ""
+        status = TelegramCommandLog.Status.IGNORED
+        error = ""
+        created_object_type = ""
+        created_object_id = ""
+
+        try:
+            if data.startswith(f"{TelegramTaskApprovalService.CALLBACK_PREFIX}:"):
+                result = TelegramTaskApprovalService(self.client).handle_callback(
+                    callback_query,
+                    user,
+                )
+                command_name = "task_approval"
+                response = result.response
+                status = (
+                    TelegramCommandLog.Status.SUCCESS
+                    if result.status == "success"
+                    else TelegramCommandLog.Status.IGNORED
+                )
+                created_object_type = "onboards.Task" if result.task_id else ""
+                created_object_id = str(result.task_id) if result.task_id else ""
+            else:
+                response = "Неизвестное действие."
+                error = response
+        except PermissionError as exc:
+            response = str(exc)
+            status = TelegramCommandLog.Status.DENIED
+            error = str(exc)
+        except (ObjectDoesNotExist, ValueError) as exc:
+            response = str(exc)
+            status = TelegramCommandLog.Status.FAILED
+            error = str(exc)
+
+        if callback_id:
+            self.client.answer_callback_query(
+                callback_id,
+                response,
+                show_alert=status != TelegramCommandLog.Status.SUCCESS,
+            )
+
+        log = TelegramCommandLog.objects.create(
+            update_id=update_id,
+            chat=chat,
+            user=user,
+            telegram_user_id=from_data.get("id"),
+            telegram_chat_id=chat_data.get("id"),
+            command=command_name,
+            text=data,
+            status=status,
+            response=response,
+            error=error,
+            created_object_type=created_object_type,
+            created_object_id=created_object_id,
         )
 
         return {"duplicate": False, "log_id": log.id, "status": status}

@@ -24,6 +24,60 @@ class TelegramClient:
         )
         return bool(result.get("ok"))
 
+    def send_message_with_result(
+        self,
+        chat_id: int,
+        text: str,
+        reply_markup: dict | None = None,
+    ) -> dict:
+        payload = {
+            "chat_id": chat_id,
+            "text": text,
+            "disable_web_page_preview": True,
+        }
+
+        if reply_markup:
+            payload["reply_markup"] = reply_markup
+
+        return self._post("sendMessage", payload)
+
+    def edit_message_text(
+        self,
+        chat_id: int,
+        message_id: int,
+        text: str,
+        reply_markup: dict | None = None,
+    ) -> bool:
+        payload = {
+            "chat_id": chat_id,
+            "message_id": message_id,
+            "text": text,
+            "disable_web_page_preview": True,
+        }
+
+        if reply_markup is not None:
+            payload["reply_markup"] = reply_markup
+
+        result = self._post("editMessageText", payload)
+        return bool(result.get("ok"))
+
+    def answer_callback_query(
+        self,
+        callback_query_id: str,
+        text: str = "",
+        show_alert: bool = False,
+    ) -> bool:
+        payload = {
+            "callback_query_id": callback_query_id,
+            "show_alert": show_alert,
+        }
+
+        if text:
+            payload["text"] = text[:200]
+
+        result = self._post("answerCallbackQuery", payload)
+        return bool(result.get("ok"))
+
     def _post(self, method: str, payload: dict) -> dict:
         token = getattr(settings, "TELEGRAM_BOT_TOKEN", "")
 

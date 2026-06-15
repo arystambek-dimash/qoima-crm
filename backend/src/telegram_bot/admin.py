@@ -1,6 +1,7 @@
 from django.contrib import admin
 
 from src.telegram_bot.models import (
+    TelegramBotConfig,
     TelegramChat,
     TelegramCommandLog,
 )
@@ -11,6 +12,13 @@ class TelegramChatAdmin(admin.ModelAdmin):
     list_display = ("chat_id", "title", "type", "is_active", "updated_at")
     list_filter = ("type", "is_active")
     search_fields = ("chat_id", "title")
+
+
+@admin.register(TelegramBotConfig)
+class TelegramBotConfigAdmin(admin.ModelAdmin):
+    list_display = ("name", "task_approval_chat", "is_active", "updated_at")
+    list_filter = ("is_active",)
+    search_fields = ("name", "task_approval_chat__title")
 
 
 @admin.register(TelegramCommandLog)

@@ -4,6 +4,16 @@ from rest_framework import permissions
 from core.enums import UserRole
 
 
+def is_scoped_collaborator(user):
+    return (
+        user
+        and user.is_authenticated
+        and user.role == UserRole.COLLABORATOR
+        and not user.is_staff
+        and not user.is_superuser
+    )
+
+
 class IsEmployee(permissions.BasePermission):
     def has_permission(self, request, view):
         return (

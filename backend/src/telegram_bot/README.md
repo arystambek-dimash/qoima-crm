@@ -39,6 +39,11 @@ poetry run python manage.py set_telegram_webhook https://your-domain.com/api/tel
 7. Скопируйте Telegram ID и укажите его в поле `telegram_id` нужного
    CRM-пользователя в Django admin.
 
+8. Для approval-сообщений по задачам создайте запись `TelegramBotConfig` в
+   Django admin и выберите `task_approval_chat`. Если config пока не создан,
+   backend отправит approval request в последнюю активную группу или
+   supergroup, которую видел webhook.
+
 ## Команды
 
 Добавить доход:
@@ -82,11 +87,24 @@ poetry run python manage.py set_telegram_webhook https://your-domain.com/api/tel
 
 Поддерживаемые даты: `today`, `yesterday`, `YYYY-MM-DD` или `DD.MM.YYYY`.
 
+## Одобрение задач
+
+Когда collaborator создает задачу через API, задача получает статус `pending`.
+Backend отправляет в Telegram-группу сообщение с inline-кнопками:
+
+- `Одобрить` переводит задачу в `approved`
+- `Отклонить` переводит задачу в `rejected` и выключает `is_active`
+
+Нажимать кнопки могут staff/superuser или сотрудники с правом
+`tasks_can_edit`. Все события пишутся в `TaskAuditLog`: создание, запрос
+одобрения, одобрение, отклонение, назначение и отмена.
+
 ## Права
 
 Бот использует права CRM:
 
 - создание income/spending: `accounting_can_create`
 - доступ к отчетам: `accounting_can_retrieve`
+- одобрение задач в Telegram: `tasks_can_edit`
 - просмотр `/wallet`: любой привязанный CRM-пользователь
 - staff и superuser проходят без employee-флагов

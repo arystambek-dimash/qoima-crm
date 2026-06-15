@@ -1,3 +1,386 @@
+from django.contrib.auth import get_user_model
 from django.test import TestCase
+from rest_framework.test import APIClient
+from unittest.mock import patch
 
-# Create your tests here.
+from core.enums import UserRole
+from src.deals.models import Deal
+from src.employees.models import Employee
+from src.onboards.models import Onboard, Task, TaskAuditLog, TaskCategory
+from src.telegram_bot.models import TelegramBotConfig, TelegramChat
+from src.telegram_bot.services.handler import TelegramBotService
+
+
+class CollaboratorOnboardAccessTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.collaborator = get_user_model().objects.create_user(
+            username="client-a",
+            email="client-a@example.com",
+            password="password",
+            role=UserRole.COLLABORATOR,
+        )
+        self.other_collaborator = get_user_model().objects.create_user(
+            username="client-b",
+            email="client-b@example.com",
+            password="password",
+            role=UserRole.COLLABORATOR,
+        )
+
+        self.own_deal = self.create_deal(self.collaborator)
+        self.other_deal = self.create_deal(self.other_collaborator)
+        self.own_onboard = self.create_onboard(self.own_deal)
+        self.other_onboard = self.create_onboard(self.other_deal)
+        self.own_category = TaskCategory.objects.create(
+            name="Own category",
+            onboard=self.own_onboard,
+        )
+        self.other_category = TaskCategory.objects.create(
+            name="Other category",
+            onboard=self.other_onboard,
+        )
+        self.own_task = self.create_task(self.own_category, "Own task")
+        self.other_task = self.create_task(self.other_category, "Other task")
+
+    def test_collaborator_sees_only_onboards_for_attached_deals(self):
+        self.client.force_authenticate(self.collaborator)
+
+        response = self.client.get("/api/onboards/")
+
+        self.assertEqual(response.status_code, 200)
+        onboard_ids = {item["id"] for item in self.results(response)}
+        self.assertEqual(onboard_ids, {self.own_onboard.id})
+
+    def test_collaborator_sees_only_categories_for_attached_deals(self):
+        self.client.force_authenticate(self.collaborator)
+
+        response = self.client.get("/api/onboards/categories/")
+
+        self.assertEqual(response.status_code, 200)
+        category_ids = {item["id"] for item in self.results(response)}
+        self.assertEqual(category_ids, {self.own_category.id})
+
+    def test_collaborator_sees_only_tasks_for_attached_deals(self):
+        self.client.force_authenticate(self.collaborator)
+
+        response = self.client.get("/api/onboards/tasks/")
+
+        self.assertEqual(response.status_code, 200)
+        task_ids = {item["id"] for item in self.results(response)}
+        self.assertEqual(task_ids, {self.own_task.id})
+
+    def test_collaborator_can_create_task_for_attached_deal(self):
+        self.client.force_authenticate(self.collaborator)
+
+        response = self.client.post(
+            "/api/onboards/tasks/",
+            self.task_payload(self.own_category.id),
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertTrue(
+            Task.objects.filter(
+                id=response.data["id"],
+                category=self.own_category,
+                approval_status=Task.ApprovalStatus.PENDING,
+                created_by=self.collaborator,
+            ).exists()
+        )
+        task = Task.objects.get(pk=response.data["id"])
+        self.assertTrue(
+            task.audit_logs.filter(action=TaskAuditLog.Action.CREATED).exists()
+        )
+
+    def test_collaborator_can_create_category_for_attached_deal(self):
+        self.client.force_authenticate(self.collaborator)
+
+        response = self.client.post(
+            "/api/onboards/categories/",
+            {"name": "New category", "onboard": self.own_onboard.id},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertTrue(
+            TaskCategory.objects.filter(
+                id=response.data["id"],
+                onboard=self.own_onboard,
+            ).exists()
+        )
+
+    def test_collaborator_can_create_onboard_for_attached_deal(self):
+        self.client.force_authenticate(self.collaborator)
+
+        response = self.client.post(
+            "/api/onboards/",
+            {
+                "deal": self.own_deal.id,
+                "term_of_end": "2026-07-31",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertTrue(
+            Onboard.objects.filter(
+                id=response.data["id"],
+                deal=self.own_deal,
+            ).exists()
+        )
+
+    def test_collaborator_cannot_create_task_for_other_deal(self):
+        self.client.force_authenticate(self.collaborator)
+
+        response = self.client.post(
+            "/api/onboards/tasks/",
+            self.task_payload(self.other_category.id),
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_collaborator_cannot_create_category_for_other_deal(self):
+        self.client.force_authenticate(self.collaborator)
+
+        response = self.client.post(
+            "/api/onboards/categories/",
+            {"name": "Blocked", "onboard": self.other_onboard.id},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_collaborator_cannot_create_onboard_for_other_deal(self):
+        self.client.force_authenticate(self.collaborator)
+
+        response = self.client.post(
+            "/api/onboards/",
+            {
+                "deal": self.other_deal.id,
+                "term_of_end": "2026-06-30",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 403)
+
+    def create_deal(self, user):
+        deal = Deal.objects.create(
+            user=user,
+            stage="active",
+            date_start="2026-06-01",
+            date_end="2026-06-30",
+            deal_amount="100000.00",
+            payment_type="cash",
+        )
+        deal.collaborators.add(user)
+        return deal
+
+    def create_onboard(self, deal):
+        return Onboard.objects.create(
+            deal=deal,
+            term_of_end="2026-06-30",
+        )
+
+    def create_task(self, category, name):
+        return Task.objects.create(
+            category=category,
+            name=name,
+            type="deliverable",
+            description="Description",
+            date_start="2026-06-01",
+            date_end="2026-06-30",
+        )
+
+    def task_payload(self, category_id):
+        return {
+            "category": category_id,
+            "name": "New task",
+            "type": "deliverable",
+            "description": "Description",
+            "date_start": "2026-06-01",
+            "date_end": "2026-06-30",
+        }
+
+    def results(self, response):
+        return response.data.get("results", response.data)
+
+
+class TaskApprovalTelegramTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.collaborator = get_user_model().objects.create_user(
+            username="client-a",
+            email="client-a@example.com",
+            password="password",
+            role=UserRole.COLLABORATOR,
+        )
+        self.reviewer = get_user_model().objects.create_user(
+            username="reviewer",
+            email="reviewer@example.com",
+            password="password",
+            telegram_id=987654321,
+            role=UserRole.EMPLOYEE,
+        )
+        Employee.objects.create(
+            user=self.reviewer,
+            role="Manager",
+            salary="200000.00",
+            tasks_can_edit=True,
+        )
+        self.chat = TelegramChat.objects.create(
+            chat_id=-100123456,
+            title="CRM approvals",
+            type="supergroup",
+        )
+        TelegramBotConfig.objects.create(
+            name="default",
+            task_approval_chat=self.chat,
+        )
+        deal = Deal.objects.create(
+            user=self.collaborator,
+            stage="active",
+            date_start="2026-06-01",
+            date_end="2026-06-30",
+            deal_amount="100000.00",
+            payment_type="cash",
+        )
+        deal.collaborators.add(self.collaborator)
+        onboard = Onboard.objects.create(deal=deal, term_of_end="2026-06-30")
+        self.category = TaskCategory.objects.create(name="Delivery", onboard=onboard)
+
+    @patch(
+        "src.telegram_bot.services.telegram.TelegramClient.send_message_with_result",
+        return_value={"ok": True, "result": {"message_id": 77}},
+    )
+    def test_collaborator_task_creation_requests_telegram_approval(self, send_message):
+        self.client.force_authenticate(self.collaborator)
+
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                "/api/onboards/tasks/",
+                self.task_payload(self.category.id),
+                format="json",
+            )
+
+        self.assertEqual(response.status_code, 201)
+        task = Task.objects.get(pk=response.data["id"])
+        self.assertEqual(task.approval_status, Task.ApprovalStatus.PENDING)
+        self.assertEqual(task.created_by, self.collaborator)
+        send_message.assert_called_once()
+        chat_id, text = send_message.call_args.args[:2]
+        self.assertEqual(chat_id, self.chat.chat_id)
+        self.assertIn("Новая задача ожидает одобрения", text)
+        self.assertTrue(
+            task.audit_logs.filter(
+                action=TaskAuditLog.Action.APPROVAL_REQUESTED,
+            ).exists()
+        )
+
+    @patch("src.telegram_bot.services.telegram.TelegramClient.edit_message_text")
+    @patch("src.telegram_bot.services.telegram.TelegramClient.answer_callback_query")
+    def test_telegram_approval_callback_approves_pending_task(
+        self,
+        answer_callback_query,
+        edit_message_text,
+    ):
+        answer_callback_query.return_value = True
+        edit_message_text.return_value = True
+        task = self.create_pending_task()
+
+        result = TelegramBotService().handle_update(
+            self.callback_update("task_approval:approve:%s" % task.id)
+        )
+
+        task.refresh_from_db()
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(task.approval_status, Task.ApprovalStatus.APPROVED)
+        self.assertEqual(task.reviewed_by, self.reviewer)
+        self.assertIsNotNone(task.reviewed_at)
+        self.assertTrue(
+            task.audit_logs.filter(
+                action=TaskAuditLog.Action.APPROVED,
+                actor=self.reviewer,
+            ).exists()
+        )
+        answer_callback_query.assert_called_once()
+        edit_message_text.assert_called_once()
+
+    @patch("src.telegram_bot.services.telegram.TelegramClient.edit_message_text")
+    @patch("src.telegram_bot.services.telegram.TelegramClient.answer_callback_query")
+    def test_telegram_reject_callback_rejects_pending_task(
+        self,
+        answer_callback_query,
+        edit_message_text,
+    ):
+        answer_callback_query.return_value = True
+        edit_message_text.return_value = True
+        task = self.create_pending_task()
+
+        result = TelegramBotService().handle_update(
+            self.callback_update("task_approval:reject:%s" % task.id)
+        )
+
+        task.refresh_from_db()
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(task.approval_status, Task.ApprovalStatus.REJECTED)
+        self.assertFalse(task.is_active)
+        self.assertEqual(task.reviewed_by, self.reviewer)
+        self.assertTrue(
+            task.audit_logs.filter(
+                action=TaskAuditLog.Action.REJECTED,
+                actor=self.reviewer,
+            ).exists()
+        )
+
+    def create_pending_task(self):
+        task = Task.objects.create(
+            category=self.category,
+            name="Pending task",
+            type="deliverable",
+            description="Description",
+            date_start="2026-06-01",
+            date_end="2026-06-30",
+            created_by=self.collaborator,
+            approval_status=Task.ApprovalStatus.PENDING,
+        )
+        record = TaskAuditLog.objects.create(
+            task=task,
+            task_id_snapshot=task.id,
+            actor=self.collaborator,
+            action=TaskAuditLog.Action.CREATED,
+        )
+        self.assertEqual(record.task_id_snapshot, task.id)
+        return task
+
+    def callback_update(self, data):
+        return {
+            "update_id": 1000 + len(data),
+            "callback_query": {
+                "id": "callback-id",
+                "from": {
+                    "id": self.reviewer.telegram_id,
+                    "username": "reviewer",
+                },
+                "message": {
+                    "message_id": 77,
+                    "chat": {
+                        "id": self.chat.chat_id,
+                        "title": self.chat.title,
+                        "type": self.chat.type,
+                    },
+                },
+                "data": data,
+            },
+        }
+
+    def task_payload(self, category_id):
+        return {
+            "category": category_id,
+            "name": "New task",
+            "type": "deliverable",
+            "description": "Description",
+            "date_start": "2026-06-01",
+            "date_end": "2026-06-30",
+        }
