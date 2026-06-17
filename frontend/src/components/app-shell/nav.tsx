@@ -64,7 +64,7 @@ export const NAV: { label: string; items: NavItem[] }[] = [
       },
       {
         href: "/monthly-obligations",
-        label: "Обязательные",
+        label: "ФоТ",
         icon: CalendarCheck,
         roles: ["employee"],
         requires: "accounting_can_retrieve",
