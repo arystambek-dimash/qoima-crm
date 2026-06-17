@@ -14,6 +14,32 @@ def is_scoped_collaborator(user):
     )
 
 
+def get_employee(user):
+    try:
+        return user.employee
+    except ObjectDoesNotExist:
+        return None
+
+
+def has_employee_flag(user, permission_field):
+    if not user or not user.is_authenticated:
+        return False
+
+    if user.is_staff or user.is_superuser:
+        return True
+
+    employee = get_employee(user)
+    return bool(employee and getattr(employee, permission_field, False))
+
+
+def can_view_wallet_balance(user):
+    return has_employee_flag(user, "wallets_can_view_balance")
+
+
+def can_view_deal_amount(user):
+    return has_employee_flag(user, "deals_can_view_amount")
+
+
 class IsEmployee(permissions.BasePermission):
     def has_permission(self, request, view):
         return (
@@ -52,10 +78,7 @@ class EmployeeFlagPermission(permissions.BasePermission):
         return bool(employee and getattr(employee, permission_field, False))
 
     def get_employee(self, user):
-        try:
-            return user.employee
-        except ObjectDoesNotExist:
-            return None
+        return get_employee(user)
 
 
 class TaskPermissions(EmployeeFlagPermission):

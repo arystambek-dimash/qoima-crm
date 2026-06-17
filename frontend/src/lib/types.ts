@@ -34,6 +34,8 @@ export const EMPLOYEE_PERMISSION_FIELDS = [
   "wallets_can_create",
   "wallets_can_update",
   "wallets_can_delete",
+  "wallets_can_view_balance",
+  "deals_can_view_amount",
 ] as const;
 
 export type EmployeePermissionField = (typeof EMPLOYEE_PERMISSION_FIELDS)[number];
@@ -66,7 +68,7 @@ export interface Deal {
   stage: string;
   date_start: string;
   date_end: string;
-  deal_amount: string;
+  deal_amount: string | null;
   payment_type: DealPaymentType;
   is_active: boolean;
   payment_completed: boolean;
@@ -88,8 +90,9 @@ export interface Deal {
   links?: DealLink[];
   files?: DealFile[];
   payments?: DealPayment[];
-  paid_to_date?: string;
-  remaining?: string;
+  paid_to_date?: string | null;
+  remaining?: string | null;
+  can_view_amount?: boolean;
   progress_percent?: number;
   current_stage_name?: string;
 
@@ -163,7 +166,8 @@ export interface DealFileCreate {
 export interface DealPayment {
   id: number;
   deal: number;
-  amount: string;
+  amount: string | null;
+  can_view_amount?: boolean;
   payment_date: string;
   delayed: boolean;
 }
@@ -504,7 +508,8 @@ export interface MonthlyObligationActionResult {
 export interface Wallet {
   id: number;
   name: string;
-  balance: string;
+  balance: string | null;
+  can_view_balance: boolean;
   is_default: boolean;
   is_active: boolean;
   created_at: string;
@@ -537,9 +542,10 @@ export interface WalletLog {
   actor: number | null;
   actor_detail: User | null;
   action: WalletLogAction;
-  amount_delta: string;
-  balance_before: string;
-  balance_after: string;
+  amount_delta: string | null;
+  balance_before: string | null;
+  balance_after: string | null;
+  can_view_balance: boolean;
   description: string;
   related_object_type: string;
   related_object_id: string;
@@ -584,7 +590,8 @@ export interface DashboardByTypeRow {
 export interface DashboardWalletSummary {
   id: number;
   name: string;
-  balance: string;
+  balance: string | null;
+  can_view_balance?: boolean;
   updated_at: string;
 }
 

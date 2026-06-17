@@ -40,6 +40,21 @@ import {
   Wallet as WalletIcon,
 } from "lucide-react";
 
+const MASKED_AMOUNT = "******";
+
+function formatProtectedCurrency(
+  value: number | string | null | undefined,
+  canView: boolean | undefined
+) {
+  return canView ? formatCurrency(value) : MASKED_AMOUNT;
+}
+
+function numericAmount(value: number | string | null | undefined) {
+  if (value == null || value === "") return 0;
+  const n = typeof value === "string" ? Number(value) : value;
+  return Number.isFinite(n) ? n : 0;
+}
+
 export default function WalletsPage() {
   const isSuper = useIsSuperuser();
   const canCreate = useHasPermission("wallets_can_create");
@@ -68,6 +83,8 @@ export default function WalletsPage() {
   const allWallets = useMemo(() => listQ.data ?? [], [listQ.data]);
   const allLogs = useMemo(() => logsQ.data ?? [], [logsQ.data]);
   const recentLogs = useMemo(() => allLogs.slice(0, 20), [allLogs]);
+  const canViewBalances =
+    currentQ.data?.can_view_balance ?? allWallets.some((w) => w.can_view_balance);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -76,22 +93,26 @@ export default function WalletsPage() {
   }, [allWallets, search]);
 
   const totalBalance = useMemo(
-    () =>
-      allWallets.reduce(
-        (acc, w) => acc + (Number.isFinite(Number(w.balance)) ? Number(w.balance) : 0),
-        0
-      ),
+    () => allWallets.reduce((acc, w) => acc + numericAmount(w.balance), 0),
     [allWallets]
   );
 
   const monthlyDelta = useMemo(() => {
-    if (allLogs.length === 0) return 0;
+    if (!canViewBalances || allLogs.length === 0) return 0;
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - 30);
     return allLogs
       .filter((log) => new Date(log.created_at) >= cutoff)
-      .reduce((acc, log) => acc + Number(log.amount_delta ?? 0), 0);
-  }, [allLogs]);
+      .reduce((acc, log) => acc + numericAmount(log.amount_delta), 0);
+  }, [allLogs, canViewBalances]);
+
+  const monthlyDeltaCaption = !canViewBalances
+    ? MASKED_AMOUNT
+    : monthlyDelta === 0
+    ? "За 30 дней без движения"
+    : monthlyDelta > 0
+    ? `+${formatCurrency(monthlyDelta)} за 30 дней`
+    : `${formatCurrency(monthlyDelta)} за 30 дней`;
 
   return (
     <>
@@ -134,16 +155,10 @@ export default function WalletsPage() {
           />
           <SummaryCard
             label="Итого по всем счетам"
-            value={formatCurrency(totalBalance)}
-            caption={
-              monthlyDelta === 0
-                ? "За 30 дней без движения"
-                : monthlyDelta > 0
-                ? `+${formatCurrency(monthlyDelta)} за 30 дней`
-                : `${formatCurrency(monthlyDelta)} за 30 дней`
-            }
-            captionPositive={monthlyDelta > 0}
-            captionNegative={monthlyDelta < 0}
+            value={formatProtectedCurrency(totalBalance, canViewBalances)}
+            caption={monthlyDeltaCaption}
+            captionPositive={canViewBalances && monthlyDelta > 0}
+            captionNegative={canViewBalances && monthlyDelta < 0}
           />
         </section>
 
@@ -283,7 +298,7 @@ function CurrentWalletCard({ wallet }: { wallet: Wallet | undefined }) {
         <Badge tone="blue">{wallet.name}</Badge>
       </div>
       <div className="font-display text-[26px] sm:text-[34px] leading-[1.05] tracking-tight tabular-nums text-accent-ink relative break-words">
-        {formatCurrency(wallet.balance)}
+        {formatProtectedCurrency(wallet.balance, wallet.can_view_balance)}
       </div>
       <div className="text-[12px] text-accent-ink/80 relative">
         Обновлён {new Intl.DateTimeFormat("ru-RU", { dateStyle: "medium", timeStyle: "short" }).format(new Date(wallet.updated_at))}
@@ -396,7 +411,7 @@ function WalletRow({
         </div>
       </TD>
       <TD className="text-right font-medium tabular-nums">
-        {formatCurrency(wallet.balance)}
+        {formatProtectedCurrency(wallet.balance, wallet.can_view_balance)}
       </TD>
       <TD>
         {hasActions && (
@@ -435,7 +450,8 @@ function WalletRow({
 
 function LogRow({ log }: { log: WalletLog }) {
   const meta = walletActionMeta(log.action);
-  const delta = Number(log.amount_delta);
+  const canViewBalance = log.can_view_balance;
+  const delta = canViewBalance ? numericAmount(log.amount_delta) : 0;
   const isPositive = Number.isFinite(delta) && delta > 0;
   const isNegative = Number.isFinite(delta) && delta < 0;
   const actorName = log.actor_detail
@@ -494,10 +510,10 @@ function LogRow({ log }: { log: WalletLog }) {
           isPositive ? "text-success" : isNegative ? "text-danger" : "text-ink-3"
         )}
       >
-        {isPositive ? "+" : ""}
-        {formatCurrency(delta)}
+        {canViewBalance && isPositive ? "+" : ""}
+        {formatProtectedCurrency(delta, canViewBalance)}
         <div className="text-[10px] text-ink-4 font-normal">
-          → {formatCurrency(log.balance_after)}
+          → {formatProtectedCurrency(log.balance_after, canViewBalance)}
         </div>
       </div>
     </li>

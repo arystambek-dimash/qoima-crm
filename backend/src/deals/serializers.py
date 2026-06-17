@@ -2,7 +2,7 @@ from rest_framework import serializers
 from django.contrib.auth import get_user_model
 
 from core.enums import UserRole
-from core.permissions import is_scoped_collaborator
+from core.permissions import can_view_deal_amount, is_scoped_collaborator
 from src.deals.models import Deal, DealFile, DealLink, DealPayment, DealStage
 from src.users.serializers import UserSerializer
 
@@ -42,14 +42,30 @@ class DealFileSerializer(serializers.ModelSerializer):
 
 
 class DealPaymentSerializer(serializers.ModelSerializer):
+    can_view_amount = serializers.SerializerMethodField()
+
     class Meta:
         model = DealPayment
         fields = (
             'id',
             'amount',
+            'can_view_amount',
             'payment_date',
             'delayed'
         )
+        read_only_fields = ('id', 'can_view_amount')
+
+    def get_can_view_amount(self, obj) -> bool:
+        request = self.context.get("request")
+        return bool(request and can_view_deal_amount(request.user))
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+
+        if not data["can_view_amount"]:
+            data["amount"] = None
+
+        return data
 
 
 class DealStageSerializer(serializers.ModelSerializer):
@@ -127,6 +143,7 @@ class DealSerializer(serializers.ModelSerializer):
     )
     progress_percent = serializers.SerializerMethodField()
     current_stage_name = serializers.SerializerMethodField()
+    can_view_amount = serializers.SerializerMethodField()
 
     class Meta:
         model = Deal
@@ -152,6 +169,7 @@ class DealSerializer(serializers.ModelSerializer):
             'user_detail',
             'paid_to_date',
             'remaining',
+            'can_view_amount',
             'progress_percent',
             'current_stage_name',
         )
@@ -160,6 +178,7 @@ class DealSerializer(serializers.ModelSerializer):
             'id',
             'paid_to_date',
             'remaining',
+            'can_view_amount',
             'progress_percent',
             'current_stage_name',
         )
@@ -174,6 +193,20 @@ class DealSerializer(serializers.ModelSerializer):
             attrs.pop("responsibles", None)
 
         return attrs
+
+    def get_can_view_amount(self, obj) -> bool:
+        request = self.context.get("request")
+        return bool(request and can_view_deal_amount(request.user))
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+
+        if not data["can_view_amount"]:
+            data["deal_amount"] = None
+            data["paid_to_date"] = None
+            data["remaining"] = None
+
+        return data
 
     def get_progress_percent(self, obj):
         stages = list(getattr(obj, "stages").all())

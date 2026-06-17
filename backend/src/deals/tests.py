@@ -8,7 +8,8 @@ from django.test.utils import override_settings
 from rest_framework.test import APIClient
 
 from core.enums import UserRole
-from src.deals.models import Deal, DealFile, DealLink, DealStage
+from src.deals.models import Deal, DealFile, DealLink, DealPayment, DealStage
+from src.employees.models import Employee
 
 
 class CollaboratorDealAccessTests(TestCase):
@@ -263,6 +264,46 @@ class ProjectFeatureTests(TestCase):
         self.assertEqual(response.data["status"], DealStage.Status.IN_PROGRESS)
         stage.refresh_from_db()
         self.assertEqual(stage.status, DealStage.Status.IN_PROGRESS)
+
+    def test_project_amounts_are_masked_without_amount_permission(self):
+        deal = self.create_project()
+        DealPayment.objects.create(
+            deal=deal,
+            amount="700000.00",
+            payment_date="2026-06-05",
+        )
+        employee_user = get_user_model().objects.create_user(
+            username="manager",
+            email="manager@example.com",
+            password="password",
+            role=UserRole.EMPLOYEE,
+        )
+        employee = Employee.objects.create(
+            user=employee_user,
+            role="Manager",
+            salary="100000.00",
+        )
+
+        self.client.force_authenticate(employee_user)
+        response = self.client.get(f"/api/projects/{deal.id}/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.data["can_view_amount"])
+        self.assertIsNone(response.data["deal_amount"])
+        self.assertIsNone(response.data["paid_to_date"])
+        self.assertIsNone(response.data["remaining"])
+        self.assertIsNone(response.data["payments"][0]["amount"])
+
+        employee.deals_can_view_amount = True
+        employee.save(update_fields=("deals_can_view_amount",))
+        response = self.client.get(f"/api/projects/{deal.id}/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data["can_view_amount"])
+        self.assertEqual(response.data["deal_amount"], "2800000.00")
+        self.assertEqual(response.data["paid_to_date"], "700000.00")
+        self.assertEqual(response.data["remaining"], "2100000.00")
+        self.assertEqual(response.data["payments"][0]["amount"], "700000.00")
 
     def create_project(self):
         deal = Deal.objects.create(

@@ -1,7 +1,7 @@
 from datetime import date, timedelta
 from decimal import Decimal
 
-from core.permissions import AccountingPermissions
+from core.permissions import AccountingPermissions, can_view_wallet_balance
 from django.db.models import Count, Q, Sum
 from django.db.models.functions import TruncDate, TruncMonth, TruncWeek, TruncYear
 from django.utils import timezone
@@ -167,10 +167,12 @@ class DashboardViewSet(viewsets.GenericViewSet):
 
     def _wallet(self):
         wallet = Wallet.default()
+        can_view_balance = can_view_wallet_balance(self.request.user)
         return {
             "id": wallet.id,
             "name": wallet.name,
-            "balance": wallet.balance,
+            "balance": wallet.balance if can_view_balance else None,
+            "can_view_balance": can_view_balance,
             "updated_at": wallet.updated_at,
         }
 

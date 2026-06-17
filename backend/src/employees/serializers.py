@@ -21,6 +21,8 @@ EMPLOYEE_PERMISSION_FIELDS = (
     "wallets_can_create",
     "wallets_can_update",
     "wallets_can_delete",
+    "wallets_can_view_balance",
+    "deals_can_view_amount",
 )
 
 

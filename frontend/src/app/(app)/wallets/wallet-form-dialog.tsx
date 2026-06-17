@@ -42,6 +42,7 @@ export function WalletFormDialog({
 }) {
   const [open, setOpen] = useState(false);
   const qc = useQueryClient();
+  const canEditBalance = !initial || initial.can_view_balance;
 
   const {
     register,
@@ -77,10 +78,12 @@ export function WalletFormDialog({
     mutationFn: async (values: FormValues) => {
       const payload = {
         name: values.name.trim(),
-        balance: values.balance,
         is_default: values.is_default ?? false,
         is_active: values.is_active ?? true,
       };
+      if (canEditBalance) {
+        Object.assign(payload, { balance: values.balance });
+      }
       return initial
         ? wallets.update(initial.id, payload)
         : wallets.create(payload);
@@ -142,15 +145,23 @@ export function WalletFormDialog({
               >
                 ₸
               </span>
-              <Input
-                type="number"
-                step="0.01"
-                inputMode="decimal"
-                placeholder="0.00"
-                className="pl-7 font-mono text-[15px] tabular-nums"
-                aria-invalid={!!errors.balance}
-                {...register("balance")}
-              />
+              {canEditBalance ? (
+                <Input
+                  type="number"
+                  step="0.01"
+                  inputMode="decimal"
+                  placeholder="0.00"
+                  className="pl-7 font-mono text-[15px] tabular-nums"
+                  aria-invalid={!!errors.balance}
+                  {...register("balance")}
+                />
+              ) : (
+                <Input
+                  value="******"
+                  disabled
+                  className="pl-7 font-mono text-[15px] tabular-nums"
+                />
+              )}
             </div>
           </Field>
 

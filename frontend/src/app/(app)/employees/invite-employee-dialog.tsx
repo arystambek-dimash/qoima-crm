@@ -65,9 +65,16 @@ const PERMISSION_GROUPS: {
   {
     title: "Кошелёк компании",
     fields: [
+      { f: "wallets_can_view_balance", label: "Видеть баланс кошелька" },
       { f: "wallets_can_create", label: "Создавать кошельки" },
       { f: "wallets_can_update", label: "Изменять кошельки" },
       { f: "wallets_can_delete", label: "Удалять кошельки" },
+    ],
+  },
+  {
+    title: "Финансы проектов",
+    fields: [
+      { f: "deals_can_view_amount", label: "Видеть суммы проектов" },
     ],
   },
 ];
@@ -89,6 +96,7 @@ const ROLE_PRESETS: Record<
       tasks_can_edit: true,
       deals_can_create: true,
       deals_can_update: true,
+      deals_can_view_amount: true,
     },
   },
   accountant: {
@@ -98,22 +106,30 @@ const ROLE_PRESETS: Record<
       accounting_can_create: true,
       accounting_can_update: true,
       accounting_can_delete: true,
+      wallets_can_view_balance: true,
       wallets_can_create: true,
       wallets_can_update: true,
+      deals_can_view_amount: true,
     },
   },
   finance_viewer: {
     label: "Аналитик",
-    permissions: { accounting_can_retrieve: true },
+    permissions: {
+      accounting_can_retrieve: true,
+      wallets_can_view_balance: true,
+      deals_can_view_amount: true,
+    },
   },
   cashier: {
     label: "Кассир",
     permissions: {
       accounting_can_retrieve: true,
       accounting_can_create: true,
+      wallets_can_view_balance: true,
       wallets_can_create: true,
       wallets_can_update: true,
       wallets_can_delete: true,
+      deals_can_view_amount: true,
     },
   },
   admin: {

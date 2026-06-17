@@ -69,6 +69,25 @@ import type {
   DashboardGroupBy,
 } from "@/lib/types";
 
+const MASKED_AMOUNT = "******";
+
+function canViewDealAmount(deal: { can_view_amount?: boolean }) {
+  return deal.can_view_amount !== false;
+}
+
+function numericAmount(value: number | string | null | undefined) {
+  if (value == null || value === "") return 0;
+  const n = typeof value === "string" ? Number(value) : value;
+  return Number.isFinite(n) ? n : 0;
+}
+
+function formatDealAmount(
+  deal: { can_view_amount?: boolean },
+  value: number | string | null | undefined
+) {
+  return canViewDealAmount(deal) ? formatCurrency(value) : MASKED_AMOUNT;
+}
+
 export default function DashboardPage() {
   const role = useRole();
   const user = useCurrentUser();
@@ -141,9 +160,10 @@ function CollaboratorDashboard({
   const myTasks = useMemo(() => myTasksQ.data ?? [], [myTasksQ.data]);
 
   const active = myDeals.filter((d) => d.stage === "active");
-  const totalValue = myDeals.reduce((a, d) => a + Number(d.deal_amount), 0);
-  const paid = myDeals.reduce((a, d) => a + Number(d.paid_to_date ?? 0), 0);
-  const remaining = myDeals.reduce((a, d) => a + Number(d.remaining ?? 0), 0);
+  const canViewAmounts = myDeals.every(canViewDealAmount);
+  const totalValue = myDeals.reduce((a, d) => a + numericAmount(d.deal_amount), 0);
+  const paid = myDeals.reduce((a, d) => a + numericAmount(d.paid_to_date), 0);
+  const remaining = myDeals.reduce((a, d) => a + numericAmount(d.remaining), 0);
 
   const approvalBuckets = useMemo(() => {
     const out = {
@@ -171,7 +191,9 @@ function CollaboratorDashboard({
   }, [myTasks, now]);
 
   const ordersHint = active.length
-    ? `У вас ${active.length} ${pluralProjects(active.length)} в работе на сумму ${formatCurrency(totalValue)}.`
+    ? canViewAmounts
+      ? `У вас ${active.length} ${pluralProjects(active.length)} в работе на сумму ${formatCurrency(totalValue)}.`
+      : `У вас ${active.length} ${pluralProjects(active.length)} в работе.`
     : "Активных проектов сейчас нет.";
 
   return (
@@ -200,12 +222,12 @@ function CollaboratorDashboard({
           <StatCard
             accent
             label="Оплачено"
-            value={formatCurrency(paid)}
+            value={canViewAmounts ? formatCurrency(paid) : MASKED_AMOUNT}
             caption="по всем проектам"
           />
           <StatCard
             label="Остаток"
-            value={formatCurrency(remaining)}
+            value={canViewAmounts ? formatCurrency(remaining) : MASKED_AMOUNT}
             caption="к оплате"
           />
           <StatCard
@@ -258,10 +280,10 @@ function CollaboratorDashboard({
                         <StatusBadge stage={d.stage} />
                       </TD>
                       <TD className="text-right font-medium tabular-nums">
-                        {formatCurrency(d.deal_amount)}
+                        {formatDealAmount(d, d.deal_amount)}
                       </TD>
                       <TD className="text-right text-ink-3 tabular-nums hidden sm:table-cell">
-                        {formatCurrency(d.paid_to_date)}
+                        {formatDealAmount(d, d.paid_to_date)}
                       </TD>
                       <TD className="text-ink-3 tabular-nums hidden sm:table-cell">
                         {formatDate(d.date_end)}
@@ -648,7 +670,11 @@ function EmployeeDashboard({
                 <StatCard
                   accent
                   label={`Кошелёк · ${finance.wallet.name}`}
-                  value={formatCurrency(finance.wallet.balance)}
+                  value={
+                    finance.wallet.can_view_balance
+                      ? formatCurrency(finance.wallet.balance)
+                      : MASKED_AMOUNT
+                  }
                   caption="Текущий остаток компании"
                 />
               )}

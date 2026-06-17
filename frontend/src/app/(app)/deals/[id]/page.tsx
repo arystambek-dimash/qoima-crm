@@ -78,6 +78,25 @@ import type {
   TaskCategory,
 } from "@/lib/types";
 
+const MASKED_AMOUNT = "******";
+
+function canViewDealAmount(deal: Deal | undefined) {
+  return deal?.can_view_amount !== false;
+}
+
+function formatProtectedCurrency(
+  value: number | string | null | undefined,
+  canView: boolean
+) {
+  return canView ? formatCurrency(value) : MASKED_AMOUNT;
+}
+
+function numericAmount(value: number | string | null | undefined) {
+  if (value == null || value === "") return 0;
+  const n = typeof value === "string" ? Number(value) : value;
+  return Number.isFinite(n) ? n : 0;
+}
+
 type Tab = "overview" | "stages" | "tasks" | "links" | "payments" | "files";
 
 export default function DealDetailPage({
@@ -168,9 +187,11 @@ export default function DealDetailPage({
 
   if (!d) return <Topbar eyebrow="Работа" title="Загрузка…" />;
 
-  const paid = Number(d.paid_to_date ?? 0);
-  const total = Number(d.deal_amount);
-  const progressPct = total > 0 ? Math.min((paid / total) * 100, 100) : 0;
+  const canViewAmount = canViewDealAmount(d);
+  const paid = numericAmount(d.paid_to_date);
+  const total = numericAmount(d.deal_amount);
+  const progressPct =
+    canViewAmount && total > 0 ? Math.min((paid / total) * 100, 100) : 0;
 
   return (
     <>
@@ -245,9 +266,19 @@ export default function DealDetailPage({
 
         {/* Money summary */}
         <section className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
-          <Money k="Сумма проекта" v={formatCurrency(d.deal_amount)} />
-          <Money k="Оплачено" v={formatCurrency(d.paid_to_date)} accent />
-          <Money k="Остаток" v={formatCurrency(d.remaining)} />
+          <Money
+            k="Сумма проекта"
+            v={formatProtectedCurrency(d.deal_amount, canViewAmount)}
+          />
+          <Money
+            k="Оплачено"
+            v={formatProtectedCurrency(d.paid_to_date, canViewAmount)}
+            accent
+          />
+          <Money
+            k="Остаток"
+            v={formatProtectedCurrency(d.remaining, canViewAmount)}
+          />
         </section>
 
         <Panel className="mb-8">
@@ -255,7 +286,7 @@ export default function DealDetailPage({
             <div className="flex items-center justify-between mb-2 text-[13px]">
               <span className="text-ink-2 font-medium">Прогресс оплаты</span>
               <span className="text-ink-3 tabular-nums">
-                {progressPct.toFixed(0)}%
+                {canViewAmount ? `${progressPct.toFixed(0)}%` : MASKED_AMOUNT}
               </span>
             </div>
             <div className="h-2 bg-surface-3 rounded-full relative overflow-hidden">
@@ -393,8 +424,12 @@ function OverviewTab({
   const onboard = fullOnboardQ.data;
   const progress = computeOnboardProgress(onboard);
 
-  const paid = Number(d.paid_to_date ?? 0);
-  const remaining = Number(d.remaining ?? Math.max(0, Number(d.deal_amount) - paid));
+  const canViewAmount = canViewDealAmount(d);
+  const paid = numericAmount(d.paid_to_date);
+  const remaining =
+    d.remaining == null
+      ? Math.max(0, numericAmount(d.deal_amount) - paid)
+      : numericAmount(d.remaining);
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-[1.4fr_1fr] gap-4">
@@ -412,9 +447,18 @@ function OverviewTab({
           <Row k="Способ оплаты" v={<Badge tone="gray">{paymentTypeLabel(d.payment_type)}</Badge>} />
           <Row k="Открыт" v={formatDate(d.date_start)} />
           <Row k="Срок" v={formatDate(d.date_end)} />
-          <Row k="Сумма проекта" v={formatCurrency(d.deal_amount)} />
-          <Row k="Оплачено" v={formatCurrency(paid)} />
-          <Row k="Остаток" v={formatCurrency(remaining)} />
+          <Row
+            k="Сумма проекта"
+            v={formatProtectedCurrency(d.deal_amount, canViewAmount)}
+          />
+          <Row
+            k="Оплачено"
+            v={formatProtectedCurrency(paid, canViewAmount)}
+          />
+          <Row
+            k="Остаток"
+            v={formatProtectedCurrency(remaining, canViewAmount)}
+          />
         </PanelBody>
       </Panel>
 
@@ -1889,7 +1933,10 @@ function PaymentsTab({
                       {formatDate(p.payment_date)}
                     </TD>
                     <TD className="text-right font-medium tabular-nums">
-                      {formatCurrency(p.amount)}
+                      {formatProtectedCurrency(
+                        p.amount,
+                        p.can_view_amount !== false
+                      )}
                     </TD>
                     <TD>
                       <Badge tone={status.tone} dot>

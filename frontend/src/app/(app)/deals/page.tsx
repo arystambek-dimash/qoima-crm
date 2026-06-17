@@ -66,6 +66,25 @@ import {
 } from "lucide-react";
 import type { Deal } from "@/lib/types";
 
+const MASKED_AMOUNT = "******";
+
+function canViewDealAmount(deal: Deal) {
+  return deal.can_view_amount !== false;
+}
+
+function numericAmount(value: number | string | null | undefined) {
+  if (value == null || value === "") return 0;
+  const n = typeof value === "string" ? Number(value) : value;
+  return Number.isFinite(n) ? n : 0;
+}
+
+function formatDealAmount(
+  deal: Deal,
+  value: number | string | null | undefined
+) {
+  return canViewDealAmount(deal) ? formatCurrency(value) : MASKED_AMOUNT;
+}
+
 type StatusFilter = "all" | "active" | "completed" | "cancelled";
 type View = "table" | "board";
 type SortKey = "client" | "stage" | "amount" | "paid" | "deadline";
@@ -134,7 +153,8 @@ export default function DealsPage() {
     [filtered, sortKey, sortDir]
   );
 
-  const totalValue = filtered.reduce((a, d) => a + Number(d.deal_amount), 0);
+  const canViewFilteredAmounts = filtered.every(canViewDealAmount);
+  const totalValue = filtered.reduce((a, d) => a + numericAmount(d.deal_amount), 0);
   const isCollaborator = scopedToMine;
 
   function toggleSort(k: SortKey) {
@@ -187,7 +207,11 @@ export default function DealsPage() {
         <section className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6 stagger">
           <Stat label="Всего проектов" value={String(filtered.length)} />
           <Stat label="В процессе" value={String(counts.active)} />
-          <Stat label="Общая сумма" value={formatCurrency(totalValue)} accent />
+          <Stat
+            label="Общая сумма"
+            value={canViewFilteredAmounts ? formatCurrency(totalValue) : MASKED_AMOUNT}
+            accent
+          />
         </section>
 
         <section className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4 anim-fade">
@@ -346,10 +370,10 @@ function sortDeals(list: Deal[], key: SortKey, dir: SortDir): Deal[] {
       case "stage":
         return a.stage.localeCompare(b.stage) * mul;
       case "amount":
-        return (Number(a.deal_amount) - Number(b.deal_amount)) * mul;
+        return (numericAmount(a.deal_amount) - numericAmount(b.deal_amount)) * mul;
       case "paid":
         return (
-          (Number(a.paid_to_date ?? 0) - Number(b.paid_to_date ?? 0)) * mul
+          (numericAmount(a.paid_to_date) - numericAmount(b.paid_to_date)) * mul
         );
       case "deadline":
       default:
@@ -560,7 +584,7 @@ function DealRow({
         </div>
       </TD>
       <TD className="text-right font-medium tabular-nums">
-        {formatCurrency(d.deal_amount)}
+        {formatDealAmount(d, d.deal_amount)}
       </TD>
       <TD>
         <span
@@ -859,7 +883,8 @@ function BoardColumn({
   readOnly: boolean;
   now: number;
 }) {
-  const total = list.reduce((a, d) => a + Number(d.deal_amount), 0);
+  const canViewAmounts = list.every(canViewDealAmount);
+  const total = list.reduce((a, d) => a + numericAmount(d.deal_amount), 0);
   return (
     <div className="bg-surface-2 border border-hairline rounded-xl flex flex-col w-[85vw] max-w-[320px] sm:w-[320px] shrink-0 max-h-[70vh] md:max-h-[calc(100vh-280px)]">
       <div className="flex items-center justify-between px-3 pt-3 pb-2">
@@ -870,7 +895,7 @@ function BoardColumn({
           </span>
         </div>
         <span className="text-[11px] text-ink-3 tabular-nums">
-          {formatCurrency(total)}
+          {canViewAmounts ? formatCurrency(total) : MASKED_AMOUNT}
         </span>
       </div>
       <SortableContext
@@ -992,7 +1017,7 @@ function DealCardVisual({ d, now }: { d: Deal; now: number }) {
       <ProgressBar pct={progress} className="w-full h-1.5 mb-2" />
 
       <div className="font-display text-[18px] tabular-nums text-ink leading-none mb-2">
-        {formatCurrency(d.deal_amount)}
+        {formatDealAmount(d, d.deal_amount)}
       </div>
 
       <div className="mt-2 flex items-center justify-between text-[11px]">

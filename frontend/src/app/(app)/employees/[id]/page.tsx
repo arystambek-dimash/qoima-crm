@@ -67,9 +67,16 @@ const PERMISSION_GROUPS: {
   {
     title: "Кошелёк компании",
     fields: [
+      { f: "wallets_can_view_balance", label: "Видеть баланс кошелька" },
       { f: "wallets_can_create", label: "Создавать кошельки" },
       { f: "wallets_can_update", label: "Изменять кошельки" },
       { f: "wallets_can_delete", label: "Удалять кошельки" },
+    ],
+  },
+  {
+    title: "Финансы проектов",
+    fields: [
+      { f: "deals_can_view_amount", label: "Видеть суммы проектов" },
     ],
   },
 ];

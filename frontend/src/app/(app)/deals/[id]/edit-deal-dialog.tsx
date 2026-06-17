@@ -42,7 +42,8 @@ export function EditDealDialog({
 
   const [name, setName] = useState(deal.name ?? "");
   const [stage, setStage] = useState(deal.stage);
-  const [amount, setAmount] = useState(deal.deal_amount);
+  const canViewAmount = deal.can_view_amount !== false;
+  const [amount, setAmount] = useState(deal.deal_amount ?? "");
   const [paymentType, setPaymentType] = useState<DealPaymentType>(
     deal.payment_type
   );
@@ -88,10 +89,9 @@ export function EditDealDialog({
       if (primaryId != null) collaboratorSet.add(primaryId);
       for (const id of extraCollaboratorIds) collaboratorSet.add(id);
 
-      return deals.update(deal.id, {
+      const payload = {
         name,
         stage,
-        deal_amount: amount,
         payment_type: paymentType,
         date_start: dateStart,
         date_end: dateEnd,
@@ -101,7 +101,13 @@ export function EditDealDialog({
         is_active: stage === "active",
         collaborators: Array.from(collaboratorSet),
         responsibles: responsibleIds,
-      } as never);
+      };
+
+      if (canViewAmount) {
+        Object.assign(payload, { deal_amount: amount });
+      }
+
+      return deals.update(deal.id, payload as never);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["deal", deal.id] });
@@ -150,16 +156,22 @@ export function EditDealDialog({
           </Field>
 
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Сумма (₸)">
-              <Input
-                type="number"
-                step="0.01"
-                min="0"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                required
-              />
-            </Field>
+            {canViewAmount ? (
+              <Field label="Сумма (₸)">
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  required
+                />
+              </Field>
+            ) : (
+              <Field label="Сумма (₸)">
+                <Input value="******" disabled />
+              </Field>
+            )}
             <Field label="Способ оплаты">
               <select
                 value={paymentType}

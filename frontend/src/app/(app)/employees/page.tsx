@@ -35,6 +35,7 @@ const PERMISSION_LABELS: Record<EmployeePermissionField, string> = {
   deals_can_create: "Проекты · создание",
   deals_can_update: "Проекты · изменение",
   deals_can_delete: "Проекты · удаление",
+  deals_can_view_amount: "Проекты · суммы",
   employees_can_create: "Сотрудники · добавление",
   employees_can_update: "Сотрудники · изменение",
   employees_can_delete: "Сотрудники · удаление",
@@ -45,6 +46,7 @@ const PERMISSION_LABELS: Record<EmployeePermissionField, string> = {
   wallets_can_create: "Кошелёк · создание",
   wallets_can_update: "Кошелёк · изменение",
   wallets_can_delete: "Кошелёк · удаление",
+  wallets_can_view_balance: "Кошелёк · баланс",
 };
 
 export default function EmployeesPage() {
