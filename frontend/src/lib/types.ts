@@ -1,5 +1,6 @@
 export type UserRole = "collaborator" | "employee";
 export type DealPaymentType = "cash" | "card" | "loan";
+export type DealStageStatus = "pending" | "in_progress" | "completed";
 
 export interface User {
   id: number;
@@ -59,6 +60,7 @@ export interface EmployeeDetail extends Employee {
 
 export interface Deal {
   id: number;
+  name: string;
   /** Either the FK id or the full nested User (depends on backend serializer). */
   user: number | User | null;
   stage: string;
@@ -80,8 +82,16 @@ export interface Deal {
   user_detail?: User;
   collaborators?: number[];
   collaborator_details?: User[];
+  responsibles?: number[];
+  responsible_details?: User[];
+  stages?: DealStage[];
+  links?: DealLink[];
+  files?: DealFile[];
+  payments?: DealPayment[];
   paid_to_date?: string;
   remaining?: string;
+  progress_percent?: number;
+  current_stage_name?: string;
 
   /** Derived from `user_detail` if backend gave it. */
   client_name?: string;
@@ -89,6 +99,7 @@ export interface Deal {
 }
 
 export interface DealCreate {
+  name?: string;
   stage: string;
   date_start?: string;
   date_end: string;
@@ -96,6 +107,42 @@ export interface DealCreate {
   payment_type: DealPaymentType;
   user?: number;
   collaborators?: number[];
+  responsibles?: number[];
+}
+
+export interface DealStage {
+  id: number;
+  deal: number;
+  name: string;
+  status: DealStageStatus;
+  order: number;
+  responsible: number | null;
+  responsible_detail?: User | null;
+  due_date: string | null;
+  completed_at: string | null;
+}
+
+export interface DealStageCreate {
+  name: string;
+  status?: DealStageStatus;
+  order?: number;
+  responsible?: number | null;
+  due_date?: string | null;
+  completed_at?: string | null;
+}
+
+export interface DealLink {
+  id: number;
+  deal: number;
+  title: string;
+  url: string;
+  description: string;
+}
+
+export interface DealLinkCreate {
+  title: string;
+  url: string;
+  description?: string;
 }
 
 export interface DealFile {
@@ -103,12 +150,13 @@ export interface DealFile {
   deal: number;
   file_name: string;
   file: string;
+  file_url?: string;
   description: string | null;
 }
 
 export interface DealFileCreate {
   file_name: string;
-  file: string;
+  file: File | string;
   description?: string;
 }
 
@@ -402,6 +450,53 @@ export interface SpendingCreate {
   type: string;
   amount: string;
   note?: string;
+}
+
+export interface MonthlyObligation {
+  id: number;
+  name: string;
+  type: string;
+  amount: string;
+  due_date: string;
+  charge_day: number;
+  is_active: boolean;
+  note: string;
+  last_charged_for: string | null;
+  excluded_for: string | null;
+  is_excluded_current_month: boolean;
+  last_spending: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MonthlyObligationCreate {
+  name: string;
+  type: string;
+  amount: string;
+  due_date?: string;
+  charge_day: number;
+  is_active?: boolean;
+  note?: string;
+}
+
+export interface MonthlyObligationByType {
+  type: string;
+  count: number;
+  total_amount: string;
+}
+
+export interface MonthlyObligationAnalytics {
+  total: {
+    count: number;
+    total_amount: string | null;
+  };
+  by_type: MonthlyObligationByType[];
+}
+
+export interface MonthlyObligationActionResult {
+  obligation: MonthlyObligation;
+  removed_spending_id?: number | null;
+  wallet_balance?: string | null;
 }
 
 /* -------------------- Wallets -------------------- */

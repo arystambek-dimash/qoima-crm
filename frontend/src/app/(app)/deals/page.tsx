@@ -48,6 +48,7 @@ import {
   dealClientName,
   dealClientEmail,
   isDealOverdue,
+  projectName,
   userDisplay,
 } from "@/lib/deal-labels";
 import {
@@ -116,7 +117,9 @@ export default function DealsPage() {
       list = list.filter((d) => {
         const name = dealClientName(d).toLowerCase();
         const email = dealClientEmail(d).toLowerCase();
+        const project = projectName(d).toLowerCase();
         return (
+          project.includes(term) ||
           name.includes(term) ||
           email.includes(term) ||
           String(d.id).includes(term)
@@ -132,11 +135,6 @@ export default function DealsPage() {
   );
 
   const totalValue = filtered.reduce((a, d) => a + Number(d.deal_amount), 0);
-  const paidValue = filtered.reduce(
-    (a, d) => a + Number(d.paid_to_date ?? 0),
-    0
-  );
-
   const isCollaborator = scopedToMine;
 
   function toggleSort(k: SortKey) {
@@ -148,29 +146,25 @@ export default function DealsPage() {
     }
   }
 
-  // True when ANY deal in the data has client info / paid amounts. We hide
-  // those columns when nobody has data (no point in showing dashes).
+  // True when ANY deal in the data has client info. We hide that subline
+  // when nobody has data (no point in showing dashes).
   const hasClientData = useMemo(
     () => allDeals.some((d) => dealClientName(d) || dealClientEmail(d)),
-    [allDeals]
-  );
-  const hasPaidData = useMemo(
-    () => allDeals.some((d) => d.paid_to_date != null),
     [allDeals]
   );
 
   return (
     <>
       <Topbar
-        eyebrow={isCollaborator ? "Мои заказы" : "Работа"}
-        title={isCollaborator ? "Ваши заказы" : "Заказы"}
+        eyebrow={isCollaborator ? "Мои проекты" : "Работа"}
+        title={isCollaborator ? "Ваши проекты" : "Проекты"}
         actions={
           canCreateDeal ? (
             <DealFormDialog
               trigger={
                 <Button variant="primary" size="sm">
                   <Plus className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">Новый заказ</span>
+                  <span className="hidden sm:inline">Новый проект</span>
                 </Button>
               }
             />
@@ -181,20 +175,19 @@ export default function DealsPage() {
       <main className="flex-1 px-4 sm:px-6 lg:px-10 py-6 md:py-10 max-w-[1280px] mx-auto w-full">
         <header className="mb-8 anim-rise">
           <h1 className="font-display text-[22px] sm:text-[28px] tracking-tight text-ink">
-            {isCollaborator ? "Ваши заказы" : "Заказы"}
+            {isCollaborator ? "Ваши проекты" : "Проекты"}
           </h1>
           <p className="mt-2 text-[14px] text-ink-3">
             {isCollaborator
-              ? "Следите за выполнением каждого договора. Откройте заказ, чтобы увидеть задачи."
-              : "Все подписанные договоры и заказы. У каждого свой план задач и график платежей."}
+              ? "Следите за выполнением каждого проекта. Откройте проект, чтобы увидеть задачи, файлы и ссылки."
+              : "Все проекты компании: этапы, задачи, файлы и ответственные."}
           </p>
         </header>
 
-        <section className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6 stagger">
-          <Stat label="Всего заказов" value={String(filtered.length)} />
-          <Stat label="Активные" value={String(counts.active)} />
-          <Stat label="Общая сумма" value={formatCurrency(totalValue)} />
-          <Stat label="Оплачено" value={formatCurrency(paidValue)} accent />
+        <section className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6 stagger">
+          <Stat label="Всего проектов" value={String(filtered.length)} />
+          <Stat label="В процессе" value={String(counts.active)} />
+          <Stat label="Общая сумма" value={formatCurrency(totalValue)} accent />
         </section>
 
         <section className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4 anim-fade">
@@ -218,20 +211,20 @@ export default function DealsPage() {
               <StatusChip
                 active={status === "active"}
                 onClick={() => setStatus("active")}
-                label="Активные"
+                label="В процессе"
                 count={counts.active}
               />
               <StatusChip
                 active={status === "completed"}
                 onClick={() => setStatus("completed")}
-                label="Выполненные"
+                label="Выполнено"
                 count={counts.completed}
               />
               {!isCollaborator && (
                 <StatusChip
                   active={status === "cancelled"}
                   onClick={() => setStatus("cancelled")}
-                  label="Отменённые"
+                  label="Отменено"
                   count={counts.cancelled}
                 />
               )}
@@ -271,18 +264,18 @@ export default function DealsPage() {
           <Panel className="anim-fade">
             <PanelHeader>
               <PanelTitle>
-                {status === "all" ? "Все заказы" : labelFor(status)}
+                {status === "all" ? "Все проекты" : labelFor(status)}
               </PanelTitle>
               <span className="text-[12px] text-ink-3">
                 {sorted.length}{" "}
-                {plural(sorted.length, "заказ", "заказа", "заказов")}
+                {plural(sorted.length, "проект", "проекта", "проектов")}
               </span>
             </PanelHeader>
             <Table>
               <THead>
                 <TR>
                   <SortableHeader
-                    label={hasClientData ? "Клиент / заказ" : "Заказ"}
+                    label={hasClientData ? "Проект / клиент" : "Проект"}
                     sortKey="client"
                     activeKey={sortKey}
                     dir={sortDir}
@@ -295,7 +288,6 @@ export default function DealsPage() {
                     dir={sortDir}
                     onClick={toggleSort}
                   />
-                  <TH className="hidden sm:table-cell">Оплата</TH>
                   <SortableHeader
                     label="Сумма"
                     sortKey="amount"
@@ -304,17 +296,6 @@ export default function DealsPage() {
                     onClick={toggleSort}
                     align="right"
                   />
-                  {hasPaidData && (
-                    <SortableHeader
-                      label="Оплачено"
-                      sortKey="paid"
-                      activeKey={sortKey}
-                      dir={sortDir}
-                      onClick={toggleSort}
-                      align="right"
-                      className="hidden sm:table-cell"
-                    />
-                  )}
                   <SortableHeader
                     label="Срок"
                     sortKey="deadline"
@@ -332,7 +313,6 @@ export default function DealsPage() {
                     d={d}
                     now={now}
                     hasClientData={hasClientData}
-                    hasPaidData={hasPaidData}
                   />
                 ))}
               </tbody>
@@ -359,8 +339,8 @@ function sortDeals(list: Deal[], key: SortKey, dir: SortDir): Deal[] {
   arr.sort((a, b) => {
     switch (key) {
       case "client": {
-        const an = (dealClientName(a) || `#${a.id}`).toLowerCase();
-        const bn = (dealClientName(b) || `#${b.id}`).toLowerCase();
+        const an = projectName(a).toLowerCase();
+        const bn = projectName(b).toLowerCase();
         return an.localeCompare(bn) * mul;
       }
       case "stage":
@@ -526,35 +506,40 @@ function DealRow({
   d,
   now,
   hasClientData,
-  hasPaidData,
 }: {
   d: Deal;
   now: number;
   hasClientData: boolean;
-  hasPaidData: boolean;
 }) {
   const router = useRouter();
+  const title = projectName(d);
   const name = dealClientName(d);
   const email = dealClientEmail(d);
-  const progress = computeProgress(d);
   const overdue = now > 0 && isDealOverdue(d, now);
+  const projectProgress = computeProjectProgress(d);
 
   return (
     <TR
       className="cursor-pointer"
-      onClick={() => router.push(`/deals/${d.id}` as never)}
+      onClick={() => router.push(`/projects/${d.id}` as never)}
     >
       <TD>
         <div className="flex flex-col leading-tight">
-          {hasClientData && name ? (
-            <span className="text-ink font-medium">{name}</span>
-          ) : (
-            <span className="text-ink font-medium">Заказ #{d.id}</span>
-          )}
-          {hasClientData && email ? (
-            <span className="text-[12px] text-ink-3">{email}</span>
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-ink font-medium truncate">{title}</span>
+            <StatusBadge stage={d.stage} />
+          </div>
+          {hasClientData && (name || email) ? (
+            <span className="text-[12px] text-ink-3 truncate">
+              {[name, email].filter(Boolean).join(" · ")}
+            </span>
           ) : (
             <span className="text-[12px] text-ink-3 font-mono tabular-nums">
+              открыт {formatDate(d.date_start, { month: "short", day: "2-digit" })}
+            </span>
+          )}
+          {hasClientData && (name || email) && (
+            <span className="mt-1 text-[12px] text-ink-3">
               открыт {formatDate(d.date_start, { month: "short", day: "2-digit" })}
             </span>
           )}
@@ -562,27 +547,21 @@ function DealRow({
         </div>
       </TD>
       <TD>
-        <StatusBadge stage={d.stage} />
-      </TD>
-      <TD className="hidden sm:table-cell">
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <Badge tone="gray">{plLabel(d.payment_type)}</Badge>
-          {d.payment_completed && <Badge tone="green">оплачено</Badge>}
+        <div className="min-w-[180px] max-w-[240px]">
+          <div className="flex items-center justify-between gap-3 mb-1.5">
+            <span className="text-[12px] text-ink-3 truncate">
+              {stageProgressText(d)}
+            </span>
+            <span className="text-[12px] text-ink-2 tabular-nums">
+              {projectProgress}%
+            </span>
+          </div>
+          <ProgressBar pct={projectProgress} className="w-full h-2 mt-0" />
         </div>
       </TD>
       <TD className="text-right font-medium tabular-nums">
         {formatCurrency(d.deal_amount)}
       </TD>
-      {hasPaidData && (
-        <TD className="hidden sm:table-cell text-right tabular-nums">
-          <div className="flex flex-col items-end leading-tight">
-            <span className="text-ink-2">
-              {formatCurrency(d.paid_to_date)}
-            </span>
-            <ProgressBar pct={progress} />
-          </div>
-        </TD>
-      )}
       <TD>
         <span
           className={cn(
@@ -601,9 +580,9 @@ function DealRow({
   );
 }
 
-function ProgressBar({ pct }: { pct: number }) {
+function ProgressBar({ pct, className }: { pct: number; className?: string }) {
   return (
-    <div className="w-[80px] h-1 bg-surface-3 rounded-full overflow-hidden mt-1">
+    <div className={cn("w-[80px] h-1 bg-surface-3 rounded-full overflow-hidden mt-1", className)}>
       <div
         className={cn(
           "h-full rounded-full transition-all",
@@ -627,18 +606,36 @@ function StatusBadge({ stage }: { stage: string }) {
 function labelFor(s: StatusFilter): string {
   const map: Record<StatusFilter, string> = {
     all: "Все",
-    active: "Активные",
-    completed: "Выполненные",
-    cancelled: "Отменённые",
+    active: "В процессе",
+    completed: "Выполнено",
+    cancelled: "Отменено",
   };
   return map[s];
 }
 
-function computeProgress(d: Deal): number {
-  const total = Number(d.deal_amount);
-  const paid = Number(d.paid_to_date ?? 0);
-  if (total <= 0) return 0;
-  return Math.min(Math.round((paid / total) * 100), 100);
+function computeProjectProgress(d: Deal): number {
+  if (typeof d.progress_percent === "number") return d.progress_percent;
+  const stages = d.stages ?? [];
+  if (stages.length === 0) return d.stage === "completed" ? 100 : 0;
+  const done = stages.filter((s) => s.status === "completed").length;
+  return Math.round((done / stages.length) * 100);
+}
+
+function currentStageIndex(d: Deal): number {
+  const stages = d.stages ?? [];
+  if (stages.length === 0) return d.stage === "completed" ? 1 : 0;
+  const inProgress = stages.findIndex((s) => s.status === "in_progress");
+  if (inProgress >= 0) return inProgress + 1;
+  const pending = stages.findIndex((s) => s.status === "pending");
+  if (pending >= 0) return pending + 1;
+  return stages.length;
+}
+
+function stageProgressText(d: Deal): string {
+  const stages = d.stages ?? [];
+  const current = d.current_stage_name || d.stage;
+  if (stages.length === 0) return current;
+  return `Этап ${currentStageIndex(d)} из ${stages.length} · ${current}`;
 }
 
 /* ---------------- Empty states ---------------- */
@@ -656,19 +653,19 @@ function EmptyDeals({
         <Briefcase className="h-5 w-5 text-ink-3" />
       </div>
       <h3 className="font-display text-[20px] text-ink mb-1.5">
-        {isCollaborator ? "Заказов пока нет" : "В системе нет заказов"}
+        {isCollaborator ? "Проектов пока нет" : "В системе нет проектов"}
       </h3>
       <p className="text-[14px] text-ink-3 mb-5 max-w-[44ch] mx-auto">
         {isCollaborator
-          ? "Как только мы подпишем договор — он появится здесь со всеми задачами и платежами."
-          : "Создайте первый заказ — это займёт пару кликов. Можно сразу завести клиенту аккаунт."}
+          ? "Как только проект стартует, он появится здесь со всеми задачами, файлами и платежами."
+          : "Создайте первый проект — это займёт пару кликов. Можно сразу завести клиенту аккаунт."}
       </p>
       {canCreate && (
         <DealFormDialog
           trigger={
             <Button variant="primary" size="md">
               <Plus className="h-3.5 w-3.5" />
-              Новый заказ
+              Новый проект
             </Button>
           }
         />
@@ -710,9 +707,9 @@ function NoMatch({
  * ============================================================ */
 
 const BOARD_STAGES: { key: string; label: string }[] = [
-  { key: "active", label: "Активные" },
-  { key: "completed", label: "Выполненные" },
-  { key: "cancelled", label: "Отменённые" },
+  { key: "active", label: "В процессе" },
+  { key: "completed", label: "Выполнено" },
+  { key: "cancelled", label: "Отменено" },
 ];
 
 const customCollision: CollisionDetection = (args) => {
@@ -885,7 +882,7 @@ function BoardColumn({
           <div className="px-2 pb-3 flex flex-col gap-2 flex-1 overflow-y-auto scrollbar-thin">
             {list.length === 0 && (
               <div className="text-[13px] text-ink-4 text-center py-8 px-3 border border-dashed border-hairline rounded-md">
-                Перетащите заказ сюда
+                Перетащите проект сюда
               </div>
             )}
             {list.map((d) => (
@@ -957,7 +954,7 @@ function SortableDealCard({
       {...listeners}
       onClick={() => {
         if (isDragging) return;
-        router.push(`/deals/${d.id}` as never);
+        router.push(`/projects/${d.id}` as never);
       }}
       className={cn(
         "touch-none select-none",
@@ -970,9 +967,10 @@ function SortableDealCard({
 }
 
 function DealCardVisual({ d, now }: { d: Deal; now: number }) {
-  const name = dealClientName(d) || `Заказ #${d.id}`;
+  const name = projectName(d);
+  const client = dealClientName(d);
   const overdue = now > 0 && isDealOverdue(d, now);
-  const progress = computeProgress(d);
+  const progress = computeProjectProgress(d);
 
   return (
     <div className="bg-canvas border border-hairline rounded-md p-3 hover:border-hairline-strong hover:shadow-card transition-all">
@@ -981,24 +979,21 @@ function DealCardVisual({ d, now }: { d: Deal; now: number }) {
           <div className="text-[14px] font-medium text-ink leading-snug truncate">
             {name}
           </div>
-          {d.user_detail?.email && (
+          {(client || d.user_detail?.email) && (
             <div className="text-[11px] text-ink-3 truncate">
-              {d.user_detail.email}
+              {[client, d.user_detail?.email].filter(Boolean).join(" · ")}
             </div>
           )}
         </div>
-        <span className="text-[10px] font-mono text-ink-4 tabular-nums shrink-0 mt-0.5">
-          #{d.id}
-        </span>
+        <StatusBadge stage={d.stage} />
       </div>
 
-      <div className="font-display text-[20px] tabular-nums text-ink leading-none mb-2">
+      <div className="text-[12px] text-ink-3 mb-1">{stageProgressText(d)}</div>
+      <ProgressBar pct={progress} className="w-full h-1.5 mb-2" />
+
+      <div className="font-display text-[18px] tabular-nums text-ink leading-none mb-2">
         {formatCurrency(d.deal_amount)}
       </div>
-
-      {d.paid_to_date != null && (
-        <ProgressBar pct={progress} />
-      )}
 
       <div className="mt-2 flex items-center justify-between text-[11px]">
         <Badge tone="gray">{plLabel(d.payment_type)}</Badge>

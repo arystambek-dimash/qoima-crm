@@ -42,7 +42,7 @@ export function formatDate(
 
 /**
  * Russian pluralization helper. Picks one of three forms depending on the
- * number. Use like: `${n} ${plural(n, "заказ", "заказа", "заказов")}`.
+ * number. Use like: `${n} ${plural(n, "проект", "проекта", "проектов")}`.
  */
 export function plural(
   n: number,
@@ -57,8 +57,8 @@ export function plural(
   return many;
 }
 
-export function pluralOrders(n: number): string {
-  return plural(n, "активный заказ", "активных заказа", "активных заказов");
+export function pluralProjects(n: number): string {
+  return plural(n, "активный проект", "активных проекта", "активных проектов");
 }
 
 const BYTE_UNITS = ["Б", "КБ", "МБ", "ГБ"];

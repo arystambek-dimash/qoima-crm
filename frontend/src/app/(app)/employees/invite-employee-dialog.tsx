@@ -30,11 +30,11 @@ const PERMISSION_GROUPS: {
   fields: { f: EmployeePermissionField; label: string }[];
 }[] = [
   {
-    title: "Заказы",
+    title: "Проекты",
     fields: [
-      { f: "deals_can_create", label: "Создавать заказы" },
-      { f: "deals_can_update", label: "Изменять заказы" },
-      { f: "deals_can_delete", label: "Удалять заказы" },
+      { f: "deals_can_create", label: "Создавать проекты" },
+      { f: "deals_can_update", label: "Изменять проекты" },
+      { f: "deals_can_delete", label: "Удалять проекты" },
     ],
   },
   {

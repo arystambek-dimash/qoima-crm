@@ -58,7 +58,7 @@ export default function OnboardsPage() {
             Онбординг
           </h1>
           <p className="mt-2 text-[14px] text-ink-3">
-            Программы и чек-листы для каждого заказа после подписания договора.
+            Программы и чек-листы для каждого проекта после подписания договора.
           </p>
         </header>
 
@@ -98,7 +98,7 @@ export default function OnboardsPage() {
                   Нет активных программ
                 </h3>
                 <p className="text-[14px] text-ink-3 mt-1">
-                  Когда заказ начнётся, его план появится здесь.
+                  Когда проект начнётся, его план появится здесь.
                 </p>
               </div>
             )}
@@ -159,10 +159,10 @@ function OnboardCard({ o, now }: OnboardCardProps) {
       <div className="flex items-start justify-between gap-2">
         <div>
           <h3 className="text-[16px] font-medium text-ink leading-tight">
-            {o.client_name ?? (o.deal ? `Заказ #${o.deal}` : `Онбординг #${o.id}`)}
+            {o.client_name ?? (o.deal ? `Проект #${o.deal}` : `Онбординг #${o.id}`)}
           </h3>
           <div className="mt-1 flex items-center gap-2 text-[12px] text-ink-3">
-            {o.deal ? <span>Заказ #{o.deal}</span> : <span>Отдельный</span>}
+            {o.deal ? <span>Проект #{o.deal}</span> : <span>Отдельный</span>}
             <span>·</span>
             <span className="tabular-nums">
               {formatDate(o.term_of_end, { month: "short", day: "2-digit" })}

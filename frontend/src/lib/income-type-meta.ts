@@ -24,7 +24,7 @@ export interface IncomeTypeMeta {
 const KNOWN: Record<string, IncomeTypeMeta> = {
   deal_payment: {
     key: "deal_payment",
-    label: "Оплата по заказу",
+    label: "Оплата по проекту",
     icon: "📄",
     color: "#2383E2",
     tone: "blue",

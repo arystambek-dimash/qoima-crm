@@ -1,6 +1,6 @@
-/** Centralised Russian labels for deal status & payment types. */
+/** Centralised Russian labels for project status & payment types. */
 
-import type { Deal, User } from "./types";
+import type { Deal, DealStageStatus, User } from "./types";
 
 /** Combine `user_detail.first_name` + `last_name`, fallback to username. */
 export function userDisplay(u?: User): string {
@@ -17,6 +17,12 @@ export function dealClientName(d: Deal): string {
   // backend may inline the User on `user` itself
   if (d.user && typeof d.user === "object") return userDisplay(d.user as User);
   return "";
+}
+
+export function projectName(d: Deal): string {
+  const name = d.name?.trim();
+  if (name) return name;
+  return dealClientName(d) || `Проект #${d.id}`;
 }
 
 export function dealClientEmail(d: Deal): string {
@@ -36,18 +42,28 @@ export function isDealOverdue(d: Deal, now = Date.now()): boolean {
 
 
 export type DealStageLabel = {
-  tone: "blue" | "green" | "red" | "gray";
+  tone: "blue" | "green" | "red" | "gray" | "yellow";
   label: string;
 };
 
 const STAGE_LABELS: Record<string, DealStageLabel> = {
-  active: { tone: "blue", label: "активный" },
-  completed: { tone: "green", label: "выполнен" },
-  cancelled: { tone: "red", label: "отменён" },
+  active: { tone: "blue", label: "В процессе" },
+  completed: { tone: "green", label: "Выполнено" },
+  cancelled: { tone: "red", label: "Отменено" },
 };
 
 export function stageLabel(stage: string): DealStageLabel {
   return STAGE_LABELS[stage] ?? { tone: "gray", label: stage };
+}
+
+const PROJECT_STAGE_STATUS_LABELS: Record<DealStageStatus, DealStageLabel> = {
+  pending: { tone: "gray", label: "Ожидает" },
+  in_progress: { tone: "blue", label: "В процессе" },
+  completed: { tone: "green", label: "Выполнено" },
+};
+
+export function projectStageStatusLabel(status: DealStageStatus): DealStageLabel {
+  return PROJECT_STAGE_STATUS_LABELS[status] ?? { tone: "gray", label: status };
 }
 
 const PAYMENT_TYPE_LABELS: Record<string, string> = {

@@ -24,9 +24,9 @@ const PAYMENT_TYPES: { value: DealPaymentType; label: string }[] = [
 ];
 
 const STAGES = [
-  { value: "active", label: "Активный" },
-  { value: "completed", label: "Выполнен" },
-  { value: "cancelled", label: "Отменён" },
+  { value: "active", label: "В процессе" },
+  { value: "completed", label: "Выполнено" },
+  { value: "cancelled", label: "Отменено" },
 ];
 
 export function EditDealDialog({
@@ -40,6 +40,7 @@ export function EditDealDialog({
 }) {
   const qc = useQueryClient();
 
+  const [name, setName] = useState(deal.name ?? "");
   const [stage, setStage] = useState(deal.stage);
   const [amount, setAmount] = useState(deal.deal_amount);
   const [paymentType, setPaymentType] = useState<DealPaymentType>(
@@ -58,15 +59,27 @@ export function EditDealDialog({
   }, [deal.collaborators, primaryId]);
   const [extraCollaboratorIds, setExtraCollaboratorIds] =
     useState<number[]>(initialExtraIds);
+  const [responsibleIds, setResponsibleIds] = useState<number[]>(
+    deal.responsibles ?? []
+  );
 
   const collaboratorsQ = useQuery({
     queryKey: ["users", "collaborator"],
     queryFn: () => users.list("collaborator"),
     enabled: open,
   });
+  const responsiblesQ = useQuery({
+    queryKey: ["users", "employee"],
+    queryFn: () => users.list("employee"),
+    enabled: open,
+  });
   const collaboratorList = useMemo(
     () => collaboratorsQ.data ?? [],
     [collaboratorsQ.data]
+  );
+  const responsibleList = useMemo(
+    () => responsiblesQ.data ?? [],
+    [responsiblesQ.data]
   );
 
   const update = useMutation({
@@ -76,6 +89,7 @@ export function EditDealDialog({
       for (const id of extraCollaboratorIds) collaboratorSet.add(id);
 
       return deals.update(deal.id, {
+        name,
         stage,
         deal_amount: amount,
         payment_type: paymentType,
@@ -86,12 +100,13 @@ export function EditDealDialog({
         payment_completed: paymentCompleted,
         is_active: stage === "active",
         collaborators: Array.from(collaboratorSet),
+        responsibles: responsibleIds,
       } as never);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["deal", deal.id] });
       qc.invalidateQueries({ queryKey: ["deals"] });
-      toast.success("Заказ обновлён.");
+      toast.success("Проект обновлён.");
       onOpenChange(false);
     },
     onError: (err) => toast.error(asApiError(err).message),
@@ -101,9 +116,9 @@ export function EditDealDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[520px]">
         <DialogHeader
-          eyebrow={`Заказ #${deal.id} · Редактировать`}
-          title="Редактировать заказ"
-          description="Поменяйте сумму, способ оплаты, сроки или статус — изменения уйдут на сервер."
+          eyebrow={`Проект #${deal.id} · Редактировать`}
+          title="Редактировать проект"
+          description="Поменяйте название, сумму, сроки, ответственных или статус — изменения уйдут на сервер."
         />
         <form
           onSubmit={(e) => {
@@ -112,7 +127,15 @@ export function EditDealDialog({
           }}
           className="flex flex-col gap-4 max-h-[70vh] overflow-y-auto scrollbar-thin pr-1"
         >
-          <Field label="Стадия">
+          <Field label="Название проекта">
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+            />
+          </Field>
+
+          <Field label="Статус проекта">
             <select
               value={stage}
               onChange={(e) => setStage(e.target.value)}
@@ -191,6 +214,13 @@ export function EditDealDialog({
             loading={collaboratorsQ.isLoading}
           />
 
+          <EditResponsibles
+            users={responsibleList}
+            selectedIds={responsibleIds}
+            onChange={setResponsibleIds}
+            loading={responsiblesQ.isLoading}
+          />
+
           <div className="flex items-center justify-end gap-2 pt-3 border-t border-hairline">
             <Button
               type="button"
@@ -212,6 +242,77 @@ export function EditDealDialog({
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function userShortName(u: User): string {
+  return `${u.first_name ?? ""} ${u.last_name ?? ""}`.trim() || u.username || u.email;
+}
+
+function EditResponsibles({
+  users: list,
+  selectedIds,
+  onChange,
+  loading,
+}: {
+  users: User[];
+  selectedIds: number[];
+  onChange: (next: number[]) => void;
+  loading?: boolean;
+}) {
+  const selected = list.filter((u) => selectedIds.includes(u.id));
+
+  function toggle(id: number) {
+    if (selectedIds.includes(id)) {
+      onChange(selectedIds.filter((x) => x !== id));
+    } else {
+      onChange([...selectedIds, id]);
+    }
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1.5">
+        <label className="text-[12px] font-medium text-ink-2">
+          Ответственные
+        </label>
+        <span className="text-[11px] text-ink-4">
+          {selected.length} выбрано
+        </span>
+      </div>
+      <div className="rounded-md border border-hairline-strong bg-canvas max-h-[160px] overflow-y-auto scrollbar-thin">
+        {loading ? (
+          <div className="text-[12px] text-ink-4 px-3 py-4 text-center">
+            Загрузка сотрудников…
+          </div>
+        ) : list.length === 0 ? (
+          <div className="text-[12px] text-ink-4 px-3 py-4 text-center">
+            Сотрудников пока нет
+          </div>
+        ) : (
+          list.map((u) => {
+            const picked = selectedIds.includes(u.id);
+            return (
+              <button
+                key={u.id}
+                type="button"
+                onClick={() => toggle(u.id)}
+                className="w-full flex items-center gap-2 px-2 h-9 text-[13px] text-left hover:bg-surface-2 transition-colors"
+              >
+                <Avatar name={userShortName(u)} size={20} className="text-[10px]" />
+                <span className="flex-1 min-w-0">
+                  <span className="block text-ink truncate">{userShortName(u)}</span>
+                  <span className="block text-[11px] text-ink-4 truncate">
+                    {u.email}
+                  </span>
+                </span>
+                {picked && <Check className="h-3.5 w-3.5 text-accent shrink-0" />}
+              </button>
+            );
+          })
+        )}
+      </div>
+    </div>
   );
 }
 

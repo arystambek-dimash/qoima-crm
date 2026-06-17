@@ -21,7 +21,7 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "Qoima — CRM",
   description:
-    "Qoima CRM: заказы, сотрудники, задачи и финансы в одной рабочей среде.",
+    "Qoima CRM: проекты, сотрудники, задачи и финансы в одной рабочей среде.",
 };
 
 export default function RootLayout({

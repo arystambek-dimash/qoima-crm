@@ -7,6 +7,7 @@ from django.db import models
 
 # Create your models here.
 class Deal(models.Model):
+    name = models.CharField(max_length=180, blank=True, default="")
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         limit_choices_to={"role": UserRole.COLLABORATOR},
@@ -20,6 +21,12 @@ class Deal(models.Model):
         blank=True,
         limit_choices_to={"role": UserRole.COLLABORATOR},
         related_name="collaborator_deals",
+    )
+    responsibles = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        blank=True,
+        limit_choices_to={"role": UserRole.EMPLOYEE},
+        related_name="responsible_deals",
     )
     stage = models.CharField(max_length=120)
     date_start = models.DateField(default=date.today)
@@ -48,10 +55,49 @@ class Deal(models.Model):
         return self.collaborators.filter(pk=user.pk).exists()
 
 
+class DealStage(models.Model):
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        IN_PROGRESS = "in_progress", "In progress"
+        COMPLETED = "completed", "Completed"
+
+    deal = models.ForeignKey(to=Deal, on_delete=models.CASCADE, related_name="stages")
+    name = models.CharField(max_length=120)
+    status = models.CharField(
+        max_length=16,
+        choices=Status.choices,
+        default=Status.PENDING,
+    )
+    order = models.PositiveIntegerField(default=0)
+    responsible = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        limit_choices_to={"role": UserRole.EMPLOYEE},
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="deal_stages",
+    )
+    due_date = models.DateField(null=True, blank=True)
+    completed_at = models.DateField(null=True, blank=True)
+
+    class Meta:
+        ordering = ("order", "id")
+
+
+class DealLink(models.Model):
+    deal = models.ForeignKey(to=Deal, on_delete=models.CASCADE, related_name="links")
+    title = models.CharField(max_length=160)
+    url = models.URLField(max_length=500)
+    description = models.TextField(blank=True, default="")
+
+    class Meta:
+        ordering = ("id",)
+
+
 class DealFile(models.Model):
     deal = models.ForeignKey(to=Deal, on_delete=models.CASCADE, related_name="files")
     file_name = models.CharField(max_length=255)
-    file = models.FileField()
+    file = models.FileField(upload_to="deal_files/%Y/%m/%d/")
     description = models.TextField(null=True, blank=True)
 
 

@@ -1,9 +1,14 @@
+import shutil
+import tempfile
+
 from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
+from django.test.utils import override_settings
 from rest_framework.test import APIClient
 
 from core.enums import UserRole
-from src.deals.models import Deal
+from src.deals.models import Deal, DealFile, DealLink, DealStage
 
 
 class CollaboratorDealAccessTests(TestCase):
@@ -110,3 +115,165 @@ class CollaboratorDealAccessTests(TestCase):
 
     def results(self, response):
         return response.data.get("results", response.data)
+
+
+class ProjectFeatureTests(TestCase):
+    def setUp(self):
+        self.media_root = tempfile.mkdtemp()
+        self.override = override_settings(MEDIA_ROOT=self.media_root)
+        self.override.enable()
+
+        self.client = APIClient()
+        self.admin = get_user_model().objects.create_superuser(
+            username="admin",
+            email="admin@example.com",
+            password="password",
+            role=UserRole.EMPLOYEE,
+        )
+        self.client_user = get_user_model().objects.create_user(
+            username="client",
+            email="client@example.com",
+            password="password",
+            role=UserRole.COLLABORATOR,
+        )
+        self.responsible = get_user_model().objects.create_user(
+            username="kevin",
+            email="kevin@example.com",
+            password="password",
+            first_name="Кевин",
+            role=UserRole.EMPLOYEE,
+        )
+        self.client.force_authenticate(self.admin)
+
+    def tearDown(self):
+        self.override.disable()
+        shutil.rmtree(self.media_root)
+
+    def test_project_alias_creates_named_project_with_responsibles(self):
+        response = self.client.post(
+            "/api/projects/",
+            {
+                "name": "CRM для «Алтын Маркет»",
+                "user": self.client_user.id,
+                "responsibles": [self.responsible.id],
+                "stage": "active",
+                "date_start": "2026-06-01",
+                "date_end": "2026-08-20",
+                "deal_amount": "2800000.00",
+                "payment_type": "card",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data["name"], "CRM для «Алтын Маркет»")
+        self.assertEqual(response.data["responsibles"], [self.responsible.id])
+        self.assertEqual(
+            response.data["responsible_details"][0]["username"],
+            self.responsible.username,
+        )
+
+    def test_project_can_be_created_without_client(self):
+        response = self.client.post(
+            "/api/projects/",
+            {
+                "name": "Внутренний проект",
+                "responsibles": [self.responsible.id],
+                "stage": "active",
+                "date_start": "2026-06-01",
+                "date_end": "2026-08-20",
+                "deal_amount": "500000.00",
+                "payment_type": "card",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertIsNone(response.data["user"])
+        self.assertEqual(response.data["collaborators"], [])
+        self.assertEqual(response.data["name"], "Внутренний проект")
+
+    def test_project_stages_links_and_files_are_returned_on_project(self):
+        deal = self.create_project()
+
+        stage_response = self.client.post(
+            f"/api/projects/{deal.id}/stages/",
+            {
+                "name": "Разработка",
+                "status": "in_progress",
+                "order": 3,
+                "responsible": self.responsible.id,
+                "due_date": "2026-08-20",
+            },
+            format="json",
+        )
+        link_response = self.client.post(
+            f"/api/projects/{deal.id}/links/",
+            {
+                "title": "Figma",
+                "url": "https://example.com/figma",
+                "description": "Макеты проекта",
+            },
+            format="json",
+        )
+        file_response = self.client.post(
+            f"/api/projects/{deal.id}/files/",
+            {
+                "file_name": "brief.txt",
+                "file": SimpleUploadedFile(
+                    "brief.txt",
+                    b"project brief",
+                    content_type="text/plain",
+                ),
+            },
+            format="multipart",
+        )
+
+        self.assertEqual(stage_response.status_code, 201)
+        self.assertEqual(link_response.status_code, 201)
+        self.assertEqual(file_response.status_code, 201)
+        self.assertEqual(DealStage.objects.filter(deal=deal).count(), 1)
+        self.assertEqual(DealLink.objects.filter(deal=deal).count(), 1)
+        self.assertEqual(DealFile.objects.filter(deal=deal).count(), 1)
+
+        response = self.client.get(f"/api/projects/{deal.id}/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["current_stage_name"], "Разработка")
+        self.assertEqual(response.data["stages"][0]["responsible"], self.responsible.id)
+        self.assertEqual(response.data["links"][0]["title"], "Figma")
+        self.assertEqual(response.data["files"][0]["file_name"], "brief.txt")
+
+    def test_project_stage_status_can_be_patched(self):
+        deal = self.create_project()
+        stage = DealStage.objects.create(
+            deal=deal,
+            name="Разработка",
+            status=DealStage.Status.PENDING,
+            order=1,
+        )
+
+        response = self.client.patch(
+            f"/api/projects/{deal.id}/stages/{stage.id}/",
+            {"status": DealStage.Status.IN_PROGRESS},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["status"], DealStage.Status.IN_PROGRESS)
+        stage.refresh_from_db()
+        self.assertEqual(stage.status, DealStage.Status.IN_PROGRESS)
+
+    def create_project(self):
+        deal = Deal.objects.create(
+            name="CRM для «Алтын Маркет»",
+            user=self.client_user,
+            stage="active",
+            date_start="2026-06-01",
+            date_end="2026-08-20",
+            deal_amount="2800000.00",
+            payment_type="card",
+        )
+        deal.collaborators.add(self.client_user)
+        deal.responsibles.add(self.responsible)
+        return deal

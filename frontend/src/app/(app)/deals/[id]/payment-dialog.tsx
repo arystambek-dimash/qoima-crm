@@ -29,9 +29,9 @@ export function AddPaymentDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[440px]">
         <DialogHeader
-          eyebrow="Заказ · Платёж"
+          eyebrow="Проект · Платёж"
           title="Зафиксировать платёж"
-          description="Запишите полученный или запланированный платёж по этому заказу."
+          description="Запишите полученный или запланированный платёж по этому проекту."
         />
         <form
           onSubmit={(e) => {

@@ -18,7 +18,7 @@ import { AddTaskDialog } from "./task-dialog";
 import { EditDealDialog } from "./edit-deal-dialog";
 import { TasksBoard } from "@/components/tasks-board";
 import { asApiError } from "@/lib/api";
-import { deals, onboards } from "@/lib/endpoints";
+import { deals, onboards, users } from "@/lib/endpoints";
 import {
   useCurrentUser,
   useRole,
@@ -26,7 +26,13 @@ import {
   useHasPermission,
 } from "@/lib/permissions";
 import { formatCurrency, formatDate, cn, plural } from "@/lib/utils";
-import { dealClientName, paymentTypeLabel, stageLabel } from "@/lib/deal-labels";
+import {
+  dealClientName,
+  paymentTypeLabel,
+  projectName,
+  projectStageStatusLabel,
+  stageLabel,
+} from "@/lib/deal-labels";
 import { userDisplayName, userIdOf } from "@/lib/user-helpers";
 import {
   PRIORITY_LABEL,
@@ -60,14 +66,19 @@ import type {
   Deal,
   DealFile,
   DealFileCreate,
+  DealLink,
+  DealLinkCreate,
   DealPayment,
   DealPaymentCreate,
+  DealStage,
+  DealStageCreate,
+  DealStageStatus,
   Onboard,
   OnboardTask,
   TaskCategory,
 } from "@/lib/types";
 
-type Tab = "overview" | "tasks" | "payments" | "files";
+type Tab = "overview" | "stages" | "tasks" | "links" | "payments" | "files";
 
 export default function DealDetailPage({
   params,
@@ -127,12 +138,12 @@ export default function DealDetailPage({
   ) {
     return (
       <>
-        <Topbar eyebrow="Мои заказы" title="Доступ запрещён" />
+        <Topbar eyebrow="Мои проекты" title="Доступ запрещён" />
         <PermissionDenied
-          title="Этот заказ принадлежит другому клиенту"
-          detail="Вы можете видеть только свои заказы."
-          cta="К вашим заказам"
-          href="/deals"
+          title="Этот проект принадлежит другому клиенту"
+          detail="Вы можете видеть только свои проекты."
+          cta="К вашим проектам"
+          href="/projects"
         />
       </>
     );
@@ -141,14 +152,14 @@ export default function DealDetailPage({
   if (!d && !dealQ.isLoading) {
     return (
       <>
-        <Topbar eyebrow="Работа" title="Заказ не найден" />
+        <Topbar eyebrow="Работа" title="Проект не найден" />
         <main className="flex-1 px-4 sm:px-8 py-12 max-w-[1080px] mx-auto w-full">
           <Link
-            href="/deals"
+            href="/projects"
             className="inline-flex items-center gap-2 text-ink-3 hover:text-accent"
           >
             <ArrowLeft className="h-4 w-4" />
-            К списку заказов
+            К списку проектов
           </Link>
         </main>
       </>
@@ -164,8 +175,8 @@ export default function DealDetailPage({
   return (
     <>
       <Topbar
-        eyebrow={isCollaborator ? "Мои заказы" : "Работа"}
-        title={d.client_name ?? `Заказ #${d.id}`}
+        eyebrow={isCollaborator ? "Мои проекты" : "Работа"}
+        title={projectName(d)}
         actions={
           isCollaborator ? undefined : (
             <div className="flex items-center gap-2">
@@ -208,11 +219,11 @@ export default function DealDetailPage({
       />
       <main className="flex-1 px-4 sm:px-6 lg:px-10 py-10 max-w-[1080px] mx-auto w-full stagger">
         <Link
-          href="/deals"
+          href="/projects"
           className="inline-flex items-center gap-1.5 text-[13px] text-ink-3 hover:text-accent transition-colors mb-6"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
-          {isCollaborator ? "Ваши заказы" : "Все заказы"}
+          {isCollaborator ? "Ваши проекты" : "Все проекты"}
         </Link>
 
         {/* Page header */}
@@ -223,17 +234,18 @@ export default function DealDetailPage({
             {d.payment_completed && <Badge tone="green">оплачено</Badge>}
           </div>
           <h1 className="font-display text-[22px] sm:text-[28px] tracking-tight text-ink text-balance">
-            {d.client_name}
+            {projectName(d)}
           </h1>
           <p className="mt-2 text-[14px] text-ink-3">
-            {d.client_email} · Открыт {formatDate(d.date_start)} · Срок{" "}
-            {formatDate(d.date_end)}
+            {[dealClientName(d), d.client_email].filter(Boolean).join(" · ")}
+            {dealClientName(d) || d.client_email ? " · " : ""}
+            Открыт {formatDate(d.date_start)} · Срок {formatDate(d.date_end)}
           </p>
         </header>
 
         {/* Money summary */}
         <section className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
-          <Money k="Сумма заказа" v={formatCurrency(d.deal_amount)} />
+          <Money k="Сумма проекта" v={formatCurrency(d.deal_amount)} />
           <Money k="Оплачено" v={formatCurrency(d.paid_to_date)} accent />
           <Money k="Остаток" v={formatCurrency(d.remaining)} />
         </section>
@@ -260,8 +272,14 @@ export default function DealDetailPage({
           <TabButton active={tab === "overview"} onClick={() => setTab("overview")}>
             Обзор
           </TabButton>
+          <TabButton active={tab === "stages"} onClick={() => setTab("stages")}>
+            Этапы
+          </TabButton>
           <TabButton active={tab === "tasks"} onClick={() => setTab("tasks")}>
             Задачи
+          </TabButton>
+          <TabButton active={tab === "links"} onClick={() => setTab("links")}>
+            Ссылки
           </TabButton>
           <TabButton active={tab === "payments"} onClick={() => setTab("payments")}>
             Платежи
@@ -274,8 +292,22 @@ export default function DealDetailPage({
         {tab === "overview" && (
           <OverviewTab dealId={dealId} isCollaborator={isCollaborator} d={d} />
         )}
+        {tab === "stages" && (
+          <StagesTab
+            dealId={dealId}
+            stages={d.stages ?? []}
+            canEdit={!isCollaborator && canManagePayments}
+          />
+        )}
         {tab === "tasks" && (
           <TasksTab dealId={dealId} isCollaborator={isCollaborator} />
+        )}
+        {tab === "links" && (
+          <LinksTab
+            dealId={dealId}
+            links={d.links ?? []}
+            canEdit={!isCollaborator && canManagePayments}
+          />
         )}
         {tab === "payments" && (
           <PaymentsTab
@@ -298,7 +330,11 @@ export default function DealDetailPage({
           />
         )}
         {tab === "files" && (
-          <FilesTab dealId={dealId} isCollaborator={isCollaborator} />
+          <FilesTab
+            dealId={dealId}
+            files={d.files ?? []}
+            canEdit={!isCollaborator && canManagePayments}
+          />
         )}
       </main>
     </>
@@ -364,17 +400,19 @@ function OverviewTab({
     <div className="grid grid-cols-1 xl:grid-cols-[1.4fr_1fr] gap-4">
       <Panel className="anim-fade">
         <PanelHeader>
-          <PanelTitle>Детали заказа</PanelTitle>
+          <PanelTitle>Детали проекта</PanelTitle>
         </PanelHeader>
         <PanelBody className="space-y-3 text-[14px]">
+          <Row k="Проект" v={projectName(d)} />
           <Row k="Клиент" v={dealClientName(d) || userDisplayName(d.user)} />
           <Row k="Контактный email" v={d.client_email ?? "—"} />
           <CollaboratorsRow deal={d} />
+          <ResponsiblesRow deal={d} />
           <Row k="Статус" v={<StatusBadge stage={d.stage} />} />
           <Row k="Способ оплаты" v={<Badge tone="gray">{paymentTypeLabel(d.payment_type)}</Badge>} />
           <Row k="Открыт" v={formatDate(d.date_start)} />
           <Row k="Срок" v={formatDate(d.date_end)} />
-          <Row k="Сумма заказа" v={formatCurrency(d.deal_amount)} />
+          <Row k="Сумма проекта" v={formatCurrency(d.deal_amount)} />
           <Row k="Оплачено" v={formatCurrency(paid)} />
           <Row k="Остаток" v={formatCurrency(remaining)} />
         </PanelBody>
@@ -391,11 +429,11 @@ function OverviewTab({
         </PanelHeader>
         <PanelBody>
           {!primary ? (
-            <p className="text-[13px] text-ink-3">
-              {isCollaborator
-                ? "План задач пока не опубликован — мы скоро его составим."
-                : "Плана задач пока нет. Создайте онбординг для этого заказа."}
-            </p>
+              <p className="text-[13px] text-ink-3">
+                {isCollaborator
+                  ? "План задач пока не опубликован — мы скоро его составим."
+                : "Плана задач пока нет. Создайте план для этого проекта."}
+              </p>
           ) : (
             <>
               <div className="flex items-center justify-between mb-2 text-[13px]">
@@ -412,7 +450,7 @@ function OverviewTab({
                 Срок сдачи: {formatDate(primary.term_of_end)}
               </p>
               <Link
-                href={`/deals/${dealId}` as never}
+                href={`/projects/${dealId}` as never}
                 className="text-[13px] text-accent hover:text-accent-ink"
               >
                 Открыть план задач →
@@ -483,6 +521,338 @@ function CollaboratorsRow({ deal }: { deal: Deal }) {
         })}
       </div>
     </div>
+  );
+}
+
+function ResponsiblesRow({ deal }: { deal: Deal }) {
+  const list = deal.responsible_details ?? [];
+  if (list.length === 0) return <Row k="Ответственные" v="—" />;
+
+  return (
+    <div className="flex flex-col sm:flex-row items-start sm:justify-between gap-4 border-b border-hairline py-2.5 last:border-0">
+      <span className="text-ink-3 w-full sm:w-[40%] shrink-0">Ответственные</span>
+      <div className="flex-1 flex flex-wrap justify-end gap-1.5">
+        {list.map((u) => {
+          const name =
+            `${u.first_name ?? ""} ${u.last_name ?? ""}`.trim() ||
+            u.username ||
+            u.email;
+          return (
+            <span
+              key={u.id}
+              className="inline-flex items-center gap-1.5 h-7 pl-1 pr-2 rounded-full bg-tag-green-bg text-tag-green-fg text-[12px]"
+              title={u.email}
+            >
+              <Avatar
+                name={name}
+                size={20}
+                className="text-[10px] ring-1 ring-canvas"
+              />
+              <span className="max-w-[160px] truncate">{name}</span>
+            </span>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ------- Project stages ------- */
+
+const STAGE_STATUS_OPTIONS: { value: DealStageStatus; label: string }[] = [
+  { value: "pending", label: "Ожидает" },
+  { value: "in_progress", label: "В процессе" },
+  { value: "completed", label: "Выполнено" },
+];
+
+function StagesTab({
+  dealId,
+  stages,
+  canEdit,
+}: {
+  dealId: number;
+  stages: DealStage[];
+  canEdit: boolean;
+}) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const sorted = useMemo(
+    () => [...stages].sort((a, b) => a.order - b.order || a.id - b.id),
+    [stages]
+  );
+  const progress =
+    sorted.length === 0
+      ? 0
+      : Math.round(
+          (sorted.filter((s) => s.status === "completed").length /
+            sorted.length) *
+            100
+        );
+
+  const add = useMutation({
+    mutationFn: (payload: DealStageCreate) => deals.addStage(dealId, payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["deal", dealId] });
+      toast.success("Этап добавлен.");
+      setOpen(false);
+    },
+    onError: (err) => toast.error(asApiError(err).message),
+  });
+
+  const update = useMutation({
+    mutationFn: ({
+      stageId,
+      payload,
+    }: {
+      stageId: number;
+      payload: Partial<DealStageCreate>;
+    }) => deals.updateStage(dealId, stageId, payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["deal", dealId] });
+      toast.success("Этап обновлён.");
+    },
+    onError: (err) => toast.error(asApiError(err).message),
+  });
+
+  const remove = useMutation({
+    mutationFn: (stageId: number) => deals.removeStage(dealId, stageId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["deal", dealId] });
+      toast.success("Этап удалён.");
+    },
+    onError: (err) => toast.error(asApiError(err).message),
+  });
+
+  return (
+    <Panel className="anim-fade">
+      <PanelHeader>
+        <PanelTitle>Этапы проекта</PanelTitle>
+        <div className="flex items-center gap-3">
+          <span className="text-[12px] text-ink-3 tabular-nums">
+            {progress}%
+          </span>
+          {canEdit && (
+            <Button variant="primary" size="sm" onClick={() => setOpen(true)}>
+              <Plus className="h-3.5 w-3.5" />
+              Добавить этап
+            </Button>
+          )}
+        </div>
+      </PanelHeader>
+      <PanelBody>
+        {sorted.length === 0 ? (
+          <div className="text-[13px] text-ink-4 py-10 text-center">
+            Этапов пока нет.
+          </div>
+        ) : (
+          <div className="space-y-0">
+            {sorted.map((stage, idx) => {
+              const label = projectStageStatusLabel(stage.status);
+              return (
+                <div key={stage.id} className="relative flex gap-4 pb-5 last:pb-0">
+                  {idx < sorted.length - 1 && (
+                    <span className="absolute left-[15px] top-8 bottom-0 w-px bg-hairline-strong" />
+                  )}
+                  <div
+                    className={cn(
+                      "relative z-10 h-8 w-8 rounded-full grid place-items-center border text-[13px] font-medium shrink-0",
+                      stage.status === "completed"
+                        ? "bg-success text-white border-success"
+                        : stage.status === "in_progress"
+                        ? "bg-accent-soft text-accent-ink border-accent/40"
+                        : "bg-surface-2 text-ink-3 border-hairline-strong"
+                    )}
+                  >
+                    {stage.status === "completed" ? (
+                      <CheckCircle2 className="h-4 w-4" />
+                    ) : stage.status === "in_progress" ? (
+                      <Clock className="h-4 w-4" />
+                    ) : (
+                      idx + 1
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-[15px] font-medium text-ink">
+                        {stage.name}
+                      </h3>
+                      <Badge tone={label.tone} dot>
+                        {label.label}
+                      </Badge>
+                    </div>
+                    <div className="mt-1 text-[13px] text-ink-3">
+                      {stage.responsible_detail
+                        ? userDisplayName(stage.responsible_detail)
+                        : "Ответственный не назначен"}
+                      {stage.due_date ? ` · до ${formatDate(stage.due_date)}` : ""}
+                    </div>
+                  </div>
+                  {canEdit && (
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={stage.status}
+                        onChange={(e) =>
+                          update.mutate({
+                            stageId: stage.id,
+                            payload: {
+                              status: e.target.value as DealStageStatus,
+                            },
+                          })
+                        }
+                        className="h-8 bg-canvas border border-hairline-strong rounded-md px-2 text-[13px] text-ink-2 hover:border-ink-5 transition-colors cursor-pointer"
+                      >
+                        {STAGE_STATUS_OPTIONS.map((o) => (
+                          <option key={o.value} value={o.value}>
+                            {o.label}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        onClick={() => remove.mutate(stage.id)}
+                        disabled={remove.isPending}
+                        className="h-8 w-8 grid place-items-center rounded text-ink-3 hover:text-danger hover:bg-tag-red-bg/30 transition-colors"
+                        title="Удалить этап"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+        <AddStageDialog
+          open={open}
+          onOpenChange={setOpen}
+          employeesQEnabled={open}
+          nextOrder={sorted.length + 1}
+          onSubmit={(values) => add.mutate(values)}
+          pending={add.isPending}
+        />
+      </PanelBody>
+    </Panel>
+  );
+}
+
+function AddStageDialog({
+  open,
+  onOpenChange,
+  employeesQEnabled,
+  nextOrder,
+  onSubmit,
+  pending,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  employeesQEnabled: boolean;
+  nextOrder: number;
+  onSubmit: (values: DealStageCreate) => void;
+  pending: boolean;
+}) {
+  const employeesQ = useQuery({
+    queryKey: ["users", "employee"],
+    queryFn: () => users.list("employee"),
+    enabled: employeesQEnabled,
+  });
+  const [name, setName] = useState("");
+  const [status, setStatus] = useState<DealStageStatus>("pending");
+  const [responsible, setResponsible] = useState<number | "">("");
+  const [dueDate, setDueDate] = useState("");
+
+  function reset() {
+    setName("");
+    setStatus("pending");
+    setResponsible("");
+    setDueDate("");
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        onOpenChange(v);
+        if (!v) reset();
+      }}
+    >
+      <DialogContent className="max-w-[480px]">
+        <DialogHeader
+          eyebrow="Проект · Этап"
+          title="Добавить этап"
+          description="Этап появится в timeline проекта и будет участвовать в общем прогрессе."
+        />
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            onSubmit({
+              name,
+              status,
+              order: nextOrder,
+              responsible: responsible === "" ? null : responsible,
+              due_date: dueDate || null,
+            });
+            reset();
+          }}
+          className="flex flex-col gap-4"
+        >
+          <Field label="Название этапа">
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Разработка"
+              autoFocus
+              required
+            />
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Статус">
+              <select
+                value={status}
+                onChange={(e) => setStatus(e.target.value as DealStageStatus)}
+                className="h-9 w-full bg-canvas border border-hairline-strong rounded-md px-3 text-[14px] text-ink hover:border-ink-5 focus:border-accent focus:shadow-[0_0_0_3px_rgba(35,131,226,0.18)] outline-none transition-all cursor-pointer"
+              >
+                {STAGE_STATUS_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Срок">
+              <Input
+                type="date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+              />
+            </Field>
+          </div>
+          <Field label="Ответственный">
+            <select
+              value={responsible === "" ? "" : String(responsible)}
+              onChange={(e) =>
+                setResponsible(e.target.value ? Number(e.target.value) : "")
+              }
+              className="h-9 w-full bg-canvas border border-hairline-strong rounded-md px-3 text-[14px] text-ink hover:border-ink-5 focus:border-accent focus:shadow-[0_0_0_3px_rgba(35,131,226,0.18)] outline-none transition-all cursor-pointer"
+            >
+              <option value="">Не назначен</option>
+              {(employeesQ.data ?? []).map((u) => (
+                <option key={u.id} value={u.id}>
+                  {userDisplayName(u)}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-hairline">
+            <Button type="button" variant="ghost" size="md" onClick={() => onOpenChange(false)}>
+              Отмена
+            </Button>
+            <Button type="submit" variant="primary" size="md" disabled={pending || !name.trim()}>
+              {pending ? "Сохраняем…" : "Добавить"}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -1256,13 +1626,196 @@ function TasksList({
   );
 }
 
+/* ------- Useful links ------- */
+
+function LinksTab({
+  dealId,
+  links,
+  canEdit,
+}: {
+  dealId: number;
+  links: DealLink[];
+  canEdit: boolean;
+}) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+
+  const add = useMutation({
+    mutationFn: (payload: DealLinkCreate) => deals.addLink(dealId, payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["deal", dealId] });
+      toast.success("Ссылка добавлена.");
+      setOpen(false);
+    },
+    onError: (err) => toast.error(asApiError(err).message),
+  });
+
+  const remove = useMutation({
+    mutationFn: (linkId: number) => deals.removeLink(dealId, linkId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["deal", dealId] });
+      toast.success("Ссылка удалена.");
+    },
+    onError: (err) => toast.error(asApiError(err).message),
+  });
+
+  return (
+    <Panel className="anim-fade">
+      <PanelHeader>
+        <PanelTitle>Полезные ссылки</PanelTitle>
+        {canEdit && (
+          <Button variant="primary" size="sm" onClick={() => setOpen(true)}>
+            <Plus className="h-3.5 w-3.5" />
+            Добавить
+          </Button>
+        )}
+      </PanelHeader>
+      <PanelBody>
+        {links.length === 0 ? (
+          <div className="text-[13px] text-ink-4 py-10 text-center">
+            Ссылок пока нет.
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {links.map((link) => (
+              <div
+                key={link.id}
+                className="group flex items-start gap-3 p-3 border border-hairline rounded-md hover:border-hairline-strong transition-colors"
+              >
+                <div className="h-9 w-9 grid place-items-center bg-surface-2 rounded-md shrink-0">
+                  <FileText className="h-4 w-4 text-ink-3" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <a
+                    href={link.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[14px] text-ink truncate group-hover:text-accent transition-colors block"
+                  >
+                    {link.title}
+                  </a>
+                  <div className="text-[12px] text-ink-3 truncate">
+                    {link.description || link.url}
+                  </div>
+                </div>
+                {canEdit && (
+                  <button
+                    onClick={() => remove.mutate(link.id)}
+                    disabled={remove.isPending}
+                    className="h-7 w-7 grid place-items-center rounded text-ink-3 hover:text-danger hover:bg-tag-red-bg/30 transition-colors"
+                    title="Удалить"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+        <AddLinkDialog
+          open={open}
+          onOpenChange={setOpen}
+          onSubmit={(values) => add.mutate(values)}
+          pending={add.isPending}
+        />
+      </PanelBody>
+    </Panel>
+  );
+}
+
+function AddLinkDialog({
+  open,
+  onOpenChange,
+  onSubmit,
+  pending,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onSubmit: (values: DealLinkCreate) => void;
+  pending: boolean;
+}) {
+  const [title, setTitle] = useState("");
+  const [url, setUrl] = useState("");
+  const [description, setDescription] = useState("");
+
+  function reset() {
+    setTitle("");
+    setUrl("");
+    setDescription("");
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        onOpenChange(v);
+        if (!v) reset();
+      }}
+    >
+      <DialogContent className="max-w-[480px]">
+        <DialogHeader
+          eyebrow="Проект · Ссылка"
+          title="Добавить ссылку"
+          description="Добавьте документ, макет, доску, репозиторий или другой полезный ресурс."
+        />
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            onSubmit({
+              title,
+              url,
+              description: description || undefined,
+            });
+            reset();
+          }}
+          className="flex flex-col gap-4"
+        >
+          <Field label="Название">
+            <Input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Figma макеты"
+              autoFocus
+              required
+            />
+          </Field>
+          <Field label="URL">
+            <Input
+              type="url"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://..."
+              required
+            />
+          </Field>
+          <Field label="Описание">
+            <Input
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Необязательно"
+            />
+          </Field>
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-hairline">
+            <Button type="button" variant="ghost" size="md" onClick={() => onOpenChange(false)}>
+              Отмена
+            </Button>
+            <Button type="submit" variant="primary" size="md" disabled={pending || !title.trim() || !url.trim()}>
+              {pending ? "Сохраняем…" : "Добавить"}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 /* ------- Payments tab ------- *
  *
  * Backend exposes only POST /deals/{id}/payments/ and DELETE — there is no
  * GET endpoint for listing payments yet. To stay honest with the user, we
  * keep a session-local list of payments added during this session and show a
  * note explaining the limitation. Once the backend adds a GET endpoint, swap
- * the source to a useQuery against `/deals/{id}/payments/`.
+ * the source to a useQuery against `/projects/{id}/payments/`.
  */
 
 function PaymentsTab({
@@ -1372,26 +1925,24 @@ function PaymentsTab({
 
 // AddPaymentDialog is now defined in ./payment-dialog.tsx and imported above.
 
-/* ------- Files tab ------- *
- *
- * Same backend limitation as payments — only POST/DELETE are exposed, no GET
- * list endpoint. Session-local list with the same disclaimer.
- */
+/* ------- Files tab ------- */
 
 function FilesTab({
   dealId,
-  isCollaborator,
+  files,
+  canEdit,
 }: {
   dealId: number;
-  isCollaborator: boolean;
+  files: DealFile[];
+  canEdit: boolean;
 }) {
-  const [local, setLocal] = useState<DealFile[]>([]);
+  const qc = useQueryClient();
   const [open, setOpen] = useState(false);
 
   const add = useMutation({
     mutationFn: (payload: DealFileCreate) => deals.addFile(dealId, payload),
-    onSuccess: (f) => {
-      setLocal((prev) => [f, ...prev]);
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["deal", dealId] });
       toast.success("Файл прикреплён.");
       setOpen(false);
     },
@@ -1400,8 +1951,8 @@ function FilesTab({
 
   const remove = useMutation({
     mutationFn: (fileId: number) => deals.removeFile(dealId, fileId),
-    onSuccess: (_, fileId) => {
-      setLocal((prev) => prev.filter((f) => f.id !== fileId));
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["deal", dealId] });
       toast.success("Файл удалён.");
     },
     onError: (err) => toast.error(asApiError(err).message),
@@ -1411,7 +1962,7 @@ function FilesTab({
     <Panel className="anim-fade">
       <PanelHeader>
         <PanelTitle>Файлы</PanelTitle>
-        {!isCollaborator && (
+        {canEdit && (
           <Button variant="primary" size="sm" onClick={() => setOpen(true)}>
             <Plus className="h-3.5 w-3.5" />
             Прикрепить
@@ -1419,17 +1970,15 @@ function FilesTab({
         )}
       </PanelHeader>
       <PanelBody>
-        <p className="text-[12px] text-ink-3 mb-3">
-          Backend пока не отдаёт список файлов через GET. Здесь видны только
-          файлы, прикреплённые в этой сессии.
-        </p>
-        {local.length === 0 ? (
+        {files.length === 0 ? (
           <div className="text-[13px] text-ink-4 py-8 text-center">
-            В этой сессии файлов пока нет.
+            Файлов пока нет.
           </div>
         ) : (
           <div className="space-y-2">
-            {local.map((f) => (
+            {files.map((f) => {
+              const fileHref = f.file_url || f.file;
+              return (
               <div
                 key={f.id}
                 className="group flex items-start gap-3 p-3 border border-hairline rounded-md hover:border-hairline-strong transition-colors"
@@ -1439,7 +1988,7 @@ function FilesTab({
                 </div>
                 <div className="flex-1 min-w-0">
                   <a
-                    href={f.file}
+                    href={fileHref}
                     target="_blank"
                     rel="noreferrer"
                     className="text-[14px] text-ink truncate group-hover:text-accent transition-colors block"
@@ -1453,7 +2002,7 @@ function FilesTab({
                   )}
                 </div>
                 <a
-                  href={f.file}
+                  href={fileHref}
                   target="_blank"
                   rel="noreferrer"
                   className="h-7 w-7 grid place-items-center rounded text-ink-3 hover:text-accent transition-colors"
@@ -1461,7 +2010,7 @@ function FilesTab({
                 >
                   <Download className="h-3.5 w-3.5" />
                 </a>
-                {!isCollaborator && (
+                {canEdit && (
                   <button
                     onClick={() => remove.mutate(f.id)}
                     disabled={remove.isPending}
@@ -1472,7 +2021,8 @@ function FilesTab({
                   </button>
                 )}
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
         <AddFileDialog
@@ -1498,25 +2048,39 @@ function AddFileDialog({
   pending: boolean;
 }) {
   const [fileName, setFileName] = useState("");
-  const [url, setUrl] = useState("");
+  const [file, setFile] = useState<File | null>(null);
   const [description, setDescription] = useState("");
 
+  function reset() {
+    setFileName("");
+    setFile(null);
+    setDescription("");
+  }
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        onOpenChange(v);
+        if (!v) reset();
+      }}
+    >
       <DialogContent className="max-w-[480px]">
         <DialogHeader
-          eyebrow="Заказ · Файл"
+          eyebrow="Проект · Файл"
           title="Прикрепить файл"
-          description="Backend сейчас принимает ссылку на файл — загрузка через форму FormData будет добавлена позже."
+          description="Выберите файл с компьютера. Он будет загружен в проект как вложение."
         />
         <form
           onSubmit={(e) => {
             e.preventDefault();
+            if (!file) return;
             onSubmit({
-              file_name: fileName,
-              file: url,
+              file_name: fileName || file.name,
+              file,
               description: description || undefined,
             });
+            reset();
           }}
           className="flex flex-col gap-4"
         >
@@ -1525,15 +2089,17 @@ function AddFileDialog({
               placeholder="например, договор-v2.pdf"
               value={fileName}
               onChange={(e) => setFileName(e.target.value)}
-              autoFocus
-              required
             />
           </Field>
-          <Field label="URL или путь">
+          <Field label="Файл">
             <Input
-              placeholder="https://… или /media/…"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
+              type="file"
+              onChange={(e) => {
+                const next = e.target.files?.[0] ?? null;
+                setFile(next);
+                if (next && !fileName) setFileName(next.name);
+              }}
+              autoFocus
               required
             />
           </Field>
@@ -1557,7 +2123,7 @@ function AddFileDialog({
               type="submit"
               variant="primary"
               size="md"
-              disabled={pending || !fileName || !url}
+              disabled={pending || !file}
             >
               {pending ? "Сохраняем…" : "Прикрепить"}
             </Button>

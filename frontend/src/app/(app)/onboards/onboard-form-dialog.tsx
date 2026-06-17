@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/input";
 import { deals, onboards } from "@/lib/endpoints";
 import { asApiError } from "@/lib/api";
-import { dealClientName } from "@/lib/deal-labels";
+import { projectName } from "@/lib/deal-labels";
 import { userDisplayName } from "@/lib/user-helpers";
 
 export function OnboardFormDialog({
@@ -62,7 +62,7 @@ export function OnboardFormDialog({
         <DialogHeader
           eyebrow="Онбординг · Новый"
           title="Создать онбординг"
-          description="Программа задач для выполнения заказа после подписания договора."
+          description="Программа задач для выполнения проекта после подписания договора."
         />
         <form
           onSubmit={(e) => {
@@ -72,7 +72,7 @@ export function OnboardFormDialog({
           className="flex flex-col gap-4"
         >
           {presetDealId === undefined && (
-            <Field label="К заказу">
+            <Field label="К проекту">
               <select
                 className="h-9 w-full bg-canvas border border-hairline-strong rounded-md px-3 text-[14px] text-ink hover:border-ink-5 focus:border-accent focus:shadow-[0_0_0_3px_rgba(35,131,226,0.18)] outline-none transition-all cursor-pointer"
                 value={String(dealId)}
@@ -85,7 +85,7 @@ export function OnboardFormDialog({
                 <option value="none">Без привязки</option>
                 {(dealsQ.data ?? []).map((d) => (
                   <option key={d.id} value={d.id}>
-                    Заказ #{d.id} · {dealClientName(d) || userDisplayName(d.user)}
+                    {projectName(d)} · {userDisplayName(d.user)}
                   </option>
                 ))}
               </select>

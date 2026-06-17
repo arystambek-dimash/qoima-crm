@@ -25,8 +25,8 @@ import {
   useIsSuperuser,
 } from "@/lib/permissions";
 import { dashboard, deals, onboards } from "@/lib/endpoints";
-import { formatCurrency, formatDate, cn, pluralOrders } from "@/lib/utils";
-import { stageLabel } from "@/lib/deal-labels";
+import { formatCurrency, formatDate, cn, pluralProjects } from "@/lib/utils";
+import { projectName, stageLabel } from "@/lib/deal-labels";
 import {
   APPROVAL_LABEL,
   APPROVAL_TONE,
@@ -171,8 +171,8 @@ function CollaboratorDashboard({
   }, [myTasks, now]);
 
   const ordersHint = active.length
-    ? `У вас ${active.length} ${pluralOrders(active.length)} в работе на сумму ${formatCurrency(totalValue)}.`
-    : "Активных заказов сейчас нет.";
+    ? `У вас ${active.length} ${pluralProjects(active.length)} в работе на сумму ${formatCurrency(totalValue)}.`
+    : "Активных проектов сейчас нет.";
 
   return (
     <>
@@ -182,18 +182,18 @@ function CollaboratorDashboard({
           <h1 className="font-display text-[22px] sm:text-[28px] tracking-tight text-ink text-balance">
             Привет, {userName.split(" ")[0] || "коллега"}.{" "}
             <span className="font-normal text-ink-3">
-              Вот ваши заказы и задачи.
+              Вот ваши проекты и задачи.
             </span>
           </h1>
           <p className="mt-3 text-[14px] text-ink-3 max-w-[60ch]">
-            {ordersHint} Откройте любой заказ, чтобы увидеть план задач — или
+            {ordersHint} Откройте любой проект, чтобы увидеть план задач — или
             предложите новую задачу, она уйдёт на одобрение.
           </p>
         </header>
 
         <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-8 stagger">
           <StatCard
-            label="Активные заказы"
+            label="Проекты в работе"
             value={String(active.length)}
             caption={`${myDeals.length} всего`}
           />
@@ -201,7 +201,7 @@ function CollaboratorDashboard({
             accent
             label="Оплачено"
             value={formatCurrency(paid)}
-            caption="по всем заказам"
+            caption="по всем проектам"
           />
           <StatCard
             label="Остаток"
@@ -218,25 +218,25 @@ function CollaboratorDashboard({
         <section className="grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-4 mb-6">
           <Panel>
             <PanelHeader>
-              <PanelTitle>Ваши заказы</PanelTitle>
+              <PanelTitle>Ваши проекты</PanelTitle>
               <Link
-                href="/deals"
+                href="/projects"
                 className="text-[13px] text-ink-3 hover:text-accent transition-colors inline-flex items-center gap-1"
               >
-                Все заказы
+                Все проекты
                 <ArrowUpRight className="h-3 w-3" />
               </Link>
             </PanelHeader>
             {myDeals.length === 0 ? (
               <PanelBody className="text-center text-[14px] text-ink-3 py-10">
-                Заказов пока нет. Они появятся здесь, как только мы подпишем
+                Проектов пока нет. Они появятся здесь, как только мы подпишем
                 договор.
               </PanelBody>
             ) : (
               <Table>
                 <THead>
                   <TR>
-                    <TH>Заказ</TH>
+                    <TH>Проект</TH>
                     <TH>Статус</TH>
                     <TH className="text-right">Сумма</TH>
                     <TH className="text-right hidden sm:table-cell">Оплачено</TH>
@@ -248,10 +248,10 @@ function CollaboratorDashboard({
                     <TR key={d.id} className="cursor-pointer">
                       <TD>
                         <Link
-                          href={`/deals/${d.id}` as never}
+                          href={`/projects/${d.id}` as never}
                           className="text-ink hover:text-accent transition-colors font-medium"
                         >
-                          {d.client_name ?? `Заказ #${d.id}`}
+                          {projectName(d)}
                         </Link>
                       </TD>
                       <TD>
@@ -528,8 +528,8 @@ function EmployeeDashboard({
         title="Главная"
         actions={
           canCreateDeal ? (
-            <Link href="/deals">
-              <PrimaryAction label="Новый заказ" />
+            <Link href="/projects">
+              <PrimaryAction label="Новый проект" />
             </Link>
           ) : undefined
         }
@@ -854,10 +854,10 @@ function TasksPanel({
         <PanelTitle eyebrow="Задачи">Сводка</PanelTitle>
         {hasTasks && (
           <Link
-            href="/deals"
+            href="/projects"
             className="text-[13px] text-ink-3 hover:text-accent transition-colors inline-flex items-center gap-1"
           >
-            К заказам
+            К проектам
             <ArrowUpRight className="h-3 w-3" />
           </Link>
         )}
@@ -1043,13 +1043,13 @@ function TasksEmpty() {
       </h3>
       <p className="text-[13px] text-ink-3 max-w-[44ch] mx-auto mb-5">
         Задачи появляются автоматически, когда вы добавляете план работ к
-        заказу. Откройте любой заказ и нажмите «Создать задачу».
+        проекту. Откройте любой проект и нажмите «Создать задачу».
       </p>
       <div className="flex items-center justify-center gap-2 flex-wrap">
-        <Link href="/deals">
+        <Link href="/projects">
           <Button variant="primary" size="md">
             <Briefcase className="h-3.5 w-3.5" />
-            К заказам
+            К проектам
           </Button>
         </Link>
         <span className="text-[11px] text-ink-4 inline-flex items-center gap-1">

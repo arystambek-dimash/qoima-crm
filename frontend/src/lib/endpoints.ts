@@ -6,14 +6,22 @@ import type {
   DealCreate,
   DealFile,
   DealFileCreate,
+  DealLink,
+  DealLinkCreate,
   DealPayment,
   DealPaymentCreate,
+  DealStage,
+  DealStageCreate,
   Employee,
   Income,
   IncomeAnalytics,
   IncomeCreate,
   IncomeFilters,
   JWTPair,
+  MonthlyObligation,
+  MonthlyObligationActionResult,
+  MonthlyObligationAnalytics,
+  MonthlyObligationCreate,
   Onboard,
   OnboardCreate,
   OnboardUpdate,
@@ -93,26 +101,36 @@ export const employees = {
     api.patch<Employee>(`/employees/${id}/`, payload).then((r) => r.data),
 };
 
-/* ---------------- Deals ---------------- */
+/* ---------------- Projects / legacy deals ---------------- */
 
 // Alias so existing call sites keep working without churn.
 const unwrap = unwrapList;
 
-export const deals = {
+function projectFileFormData(payload: DealFileCreate): FormData | DealFileCreate {
+  if (typeof payload.file === "string") return payload;
+
+  const formData = new FormData();
+  formData.append("file", payload.file);
+  if (payload.file_name) formData.append("file_name", payload.file_name);
+  if (payload.description) formData.append("description", payload.description);
+  return formData;
+}
+
+export const projects = {
   list: () =>
     api
-      .get<Deal[] | { results: Deal[] }>("/deals/")
+      .get<Deal[] | { results: Deal[] }>("/projects/")
       .then((r) => unwrap(r.data)),
 
   /**
-   * Collaborator-scoped list. The shared `GET /api/deals/` endpoint already
-   * filters to the requesting user on the backend (own deals + any deal where
+   * Collaborator-scoped list. The shared `GET /api/projects/` endpoint already
+   * filters to the requesting user on the backend (own projects + any project where
    * they appear in `collaborators`). We keep a defensive client-side filter so
    * an admin token doesn't accidentally show the full list under this key.
    */
   listForUser: (userId: number) =>
     api
-      .get<Deal[] | { results: Deal[] }>("/deals/")
+      .get<Deal[] | { results: Deal[] }>("/projects/")
       .then((r) =>
         unwrap(r.data).filter((d) => {
           const primary =
@@ -130,36 +148,69 @@ export const deals = {
       ),
 
   retrieve: (id: number) =>
-    api.get<Deal>(`/deals/${id}/`).then((r) => r.data),
+    api.get<Deal>(`/projects/${id}/`).then((r) => r.data),
 
   create: (payload: DealCreate) =>
-    api.post<Deal>("/deals/", payload).then((r) => r.data),
+    api.post<Deal>("/projects/", payload).then((r) => r.data),
 
   update: (id: number, payload: Partial<DealCreate>) =>
-    api.patch<Deal>(`/deals/${id}/`, payload).then((r) => r.data),
+    api.patch<Deal>(`/projects/${id}/`, payload).then((r) => r.data),
 
   remove: (id: number) =>
-    api.delete<void>(`/deals/${id}/`).then((r) => r.data),
+    api.delete<void>(`/projects/${id}/`).then((r) => r.data),
 
   /* Files & payments — only POST/DELETE exposed on backend, no GET list. */
   addFile: (dealId: number, payload: DealFileCreate) =>
     api
-      .post<DealFile>(`/deals/${dealId}/files/`, payload)
+      .post<DealFile>(`/projects/${dealId}/files/`, projectFileFormData(payload), {
+        headers:
+          typeof payload.file === "string"
+            ? undefined
+            : { "Content-Type": "multipart/form-data" },
+      })
       .then((r) => r.data),
   removeFile: (dealId: number, fileId: number) =>
     api
-      .delete<void>(`/deals/${dealId}/files/${fileId}/`)
+      .delete<void>(`/projects/${dealId}/files/${fileId}/`)
+      .then((r) => r.data),
+
+  addStage: (dealId: number, payload: DealStageCreate) =>
+    api
+      .post<DealStage>(`/projects/${dealId}/stages/`, payload)
+      .then((r) => r.data),
+  updateStage: (dealId: number, stageId: number, payload: Partial<DealStageCreate>) =>
+    api
+      .patch<DealStage>(`/projects/${dealId}/stages/${stageId}/`, payload)
+      .then((r) => r.data),
+  removeStage: (dealId: number, stageId: number) =>
+    api
+      .delete<void>(`/projects/${dealId}/stages/${stageId}/`)
+      .then((r) => r.data),
+
+  addLink: (dealId: number, payload: DealLinkCreate) =>
+    api
+      .post<DealLink>(`/projects/${dealId}/links/`, payload)
+      .then((r) => r.data),
+  updateLink: (dealId: number, linkId: number, payload: Partial<DealLinkCreate>) =>
+    api
+      .patch<DealLink>(`/projects/${dealId}/links/${linkId}/`, payload)
+      .then((r) => r.data),
+  removeLink: (dealId: number, linkId: number) =>
+    api
+      .delete<void>(`/projects/${dealId}/links/${linkId}/`)
       .then((r) => r.data),
 
   addPayment: (dealId: number, payload: DealPaymentCreate) =>
     api
-      .post<DealPayment>(`/deals/${dealId}/payments/`, payload)
+      .post<DealPayment>(`/projects/${dealId}/payments/`, payload)
       .then((r) => r.data),
   removePayment: (dealId: number, paymentId: number) =>
     api
-      .delete<void>(`/deals/${dealId}/payments/${paymentId}/`)
+      .delete<void>(`/projects/${dealId}/payments/${paymentId}/`)
       .then((r) => r.data),
 };
+
+export const deals = projects;
 
 /* ---------------- Onboards ---------------- */
 
@@ -274,6 +325,58 @@ export const spendings = {
       .get<SpendingAnalytics>("/spendings/analytics/", {
         params: spendingsParams(filters),
       })
+      .then((r) => r.data),
+};
+
+export const monthlyObligations = {
+  list: (params?: { active?: boolean; search?: string }) =>
+    api
+      .get<MonthlyObligation[] | { results: MonthlyObligation[] }>(
+        "/spendings/monthly-obligations/",
+        {
+          params: {
+            active: params?.active,
+            search: params?.search || undefined,
+          },
+        }
+      )
+      .then((r) => unwrap(r.data)),
+  create: (payload: MonthlyObligationCreate) =>
+    api
+      .post<MonthlyObligation>("/spendings/monthly-obligations/", payload)
+      .then((r) => r.data),
+  update: (id: number, payload: Partial<MonthlyObligationCreate>) =>
+    api
+      .patch<MonthlyObligation>(
+        `/spendings/monthly-obligations/${id}/`,
+        payload
+      )
+      .then((r) => r.data),
+  remove: (id: number) =>
+    api
+      .delete<void>(`/spendings/monthly-obligations/${id}/`)
+      .then((r) => r.data),
+  excludeCurrentMonth: (id: number) =>
+    api
+      .post<MonthlyObligationActionResult>(
+        `/spendings/monthly-obligations/${id}/exclude-current-month/`
+      )
+      .then((r) => r.data),
+  clearCurrentMonthExclusion: (id: number) =>
+    api
+      .post<MonthlyObligationActionResult>(
+        `/spendings/monthly-obligations/${id}/clear-current-month-exclusion/`
+      )
+      .then((r) => r.data),
+  chargeDue: (payload?: { dry_run?: boolean; notify?: boolean }) =>
+    api
+      .post("/spendings/monthly-obligations/charge-due/", payload ?? {})
+      .then((r) => r.data),
+  analytics: () =>
+    api
+      .get<MonthlyObligationAnalytics>(
+        "/spendings/monthly-obligations/analytics/"
+      )
       .then((r) => r.data),
 };
 

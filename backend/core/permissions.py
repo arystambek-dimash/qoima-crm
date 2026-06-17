@@ -75,6 +75,12 @@ class DealPermissions(EmployeeFlagPermission):
         "destroy": "deals_can_delete",
         "create_file": "deals_can_update",
         "create_payment": "deals_can_update",
+        "create_stage": "deals_can_update",
+        "update_stage": "deals_can_update",
+        "delete_stage": "deals_can_update",
+        "create_link": "deals_can_update",
+        "update_link": "deals_can_update",
+        "delete_link": "deals_can_update",
         "delete_file": "deals_can_update",
         "delete_payment": "deals_can_update",
     }
@@ -98,6 +104,9 @@ class AccountingPermissions(EmployeeFlagPermission):
         "update": "accounting_can_update",
         "partial_update": "accounting_can_update",
         "destroy": "accounting_can_delete",
+        "exclude_current_month": "accounting_can_update",
+        "clear_current_month_exclusion": "accounting_can_update",
+        "charge_due": "accounting_can_update",
     }
 
 

@@ -63,7 +63,7 @@ export default function OnboardDetailPage({
     <>
       <Topbar
         eyebrow="Работа"
-        title={o.client_name ?? (o.deal ? `Заказ #${o.deal}` : `Онбординг #${o.id}`)}
+        title={o.client_name ?? (o.deal ? `Проект #${o.deal}` : `Онбординг #${o.id}`)}
         actions={
           <Button variant="primary" size="sm" onClick={() => openAdd()}>
             <Plus className="h-3.5 w-3.5" />
@@ -101,15 +101,15 @@ export default function OnboardDetailPage({
             </span>
             {o.deal && (
               <Link
-                href={`/deals/${o.deal}` as never}
+                href={`/projects/${o.deal}` as never}
                 className="text-[13px] text-accent hover:text-accent-ink transition-colors"
               >
-                Заказ #{o.deal} →
+                Проект #{o.deal} →
               </Link>
             )}
           </div>
           <h1 className="font-display text-[28px] tracking-tight text-ink text-balance">
-            {o.client_name ?? (o.deal ? `Заказ #${o.deal}` : `Онбординг #${o.id}`)}
+            {o.client_name ?? (o.deal ? `Проект #${o.deal}` : `Онбординг #${o.id}`)}
           </h1>
         </header>
 

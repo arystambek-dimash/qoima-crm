@@ -10,7 +10,12 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from src.deals.models import Deal
-from src.deals.serializers import DealFileSerializer, DealPaymentSerializer
+from src.deals.serializers import (
+    DealFileSerializer,
+    DealLinkSerializer,
+    DealPaymentSerializer,
+    DealStageSerializer,
+)
 from src.deals.serializers import DealSerializer
 
 
@@ -46,6 +51,10 @@ class DealViewSet(
     serializers = {
         "create_file": DealFileSerializer,
         "create_payment": DealPaymentSerializer,
+        "create_stage": DealStageSerializer,
+        "update_stage": DealStageSerializer,
+        "create_link": DealLinkSerializer,
+        "update_link": DealLinkSerializer,
     }
     queryset = Deal.objects.all()
     filter_backends = (
@@ -55,10 +64,15 @@ class DealViewSet(
     )
     filterset_class = DealFilter
     search_fields = (
+        "name",
         "user__username",
         "user__email",
         "user__first_name",
         "user__last_name",
+        "responsibles__username",
+        "responsibles__email",
+        "responsibles__first_name",
+        "responsibles__last_name",
     )
     ordering_fields = (
         "id",
@@ -74,7 +88,15 @@ class DealViewSet(
 
         queryset = (
             Deal.objects.select_related("user")
-            .prefetch_related("collaborators", "files", "payments")
+            .prefetch_related(
+                "collaborators",
+                "responsibles",
+                "stages",
+                "stages__responsible",
+                "links",
+                "files",
+                "payments",
+            )
             .annotate(
                 paid_to_date=Coalesce(
                     Sum("payments__amount"),
@@ -114,6 +136,68 @@ class DealViewSet(
         serializer.is_valid(raise_exception=True)
         serializer.save(deal=deal)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["post"], url_path="stages")
+    def create_stage(self, request, *args, **kwargs):
+        deal = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(deal=deal)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["patch"], url_path=r"stages/(?P<stage_id>[^/.]+)")
+    def update_stage(self, request, stage_id=None, *args, **kwargs):
+        deal = self.get_object()
+        stage = deal.stages.filter(id=stage_id).first()
+
+        if stage is None:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = self.get_serializer(stage, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(deal=deal)
+        return Response(serializer.data)
+
+    @update_stage.mapping.delete
+    def delete_stage(self, request, stage_id=None, *args, **kwargs):
+        deal = self.get_object()
+        deleted_count, _ = deal.stages.filter(id=stage_id).delete()
+
+        if deleted_count == 0:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=["post"], url_path="links")
+    def create_link(self, request, *args, **kwargs):
+        deal = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(deal=deal)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["patch"], url_path=r"links/(?P<link_id>[^/.]+)")
+    def update_link(self, request, link_id=None, *args, **kwargs):
+        deal = self.get_object()
+        link = deal.links.filter(id=link_id).first()
+
+        if link is None:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = self.get_serializer(link, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(deal=deal)
+        return Response(serializer.data)
+
+    @update_link.mapping.delete
+    def delete_link(self, request, link_id=None, *args, **kwargs):
+        deal = self.get_object()
+        deleted_count, _ = deal.links.filter(id=link_id).delete()
+
+        if deleted_count == 0:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=True, methods=["post"], url_path="payments")
     def create_payment(self, request, *args, **kwargs):

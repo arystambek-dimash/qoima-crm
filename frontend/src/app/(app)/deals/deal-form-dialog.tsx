@@ -41,7 +41,8 @@ export function DealFormDialog({ trigger }: { trigger: React.ReactNode }) {
   const isAdmin = isSuper || canCreateEmployee.granted;
   const showsClientControls = role !== "collaborator" && isAdmin;
 
-  // Deal fields
+  // Project fields
+  const [name, setName] = useState("");
   const [stage, setStage] = useState("active");
   const [amount, setAmount] = useState("");
   const [paymentType, setPaymentType] = useState<DealPaymentType>("card");
@@ -57,6 +58,7 @@ export function DealFormDialog({ trigger }: { trigger: React.ReactNode }) {
   const [extraCollaboratorIds, setExtraCollaboratorIds] = useState<number[]>(
     []
   );
+  const [responsibleIds, setResponsibleIds] = useState<number[]>([]);
 
   // New client fields
   const [newUsername, setNewUsername] = useState("");
@@ -70,13 +72,23 @@ export function DealFormDialog({ trigger }: { trigger: React.ReactNode }) {
     queryFn: () => users.list("collaborator"),
     enabled: open && showsClientControls,
   });
+  const responsiblesQ = useQuery({
+    queryKey: ["users", "employee"],
+    queryFn: () => users.list("employee"),
+    enabled: open,
+  });
 
   const collaboratorList = useMemo(
     () => collaboratorsQ.data ?? [],
     [collaboratorsQ.data]
   );
+  const responsibleList = useMemo(
+    () => responsiblesQ.data ?? [],
+    [responsiblesQ.data]
+  );
 
   function reset() {
+    setName("");
     setStage("active");
     setAmount("");
     setPaymentType("card");
@@ -85,6 +97,7 @@ export function DealFormDialog({ trigger }: { trigger: React.ReactNode }) {
     setClientMode("existing");
     setSelectedUserId("");
     setExtraCollaboratorIds([]);
+    setResponsibleIds([]);
     setNewUsername("");
     setNewEmail("");
     setNewPassword("");
@@ -123,6 +136,7 @@ export function DealFormDialog({ trigger }: { trigger: React.ReactNode }) {
       // Step 3: create the deal. For collaborators creating their own deal,
       // leave both fields out — backend attaches request.user automatically.
       const payload: DealCreate = {
+        name,
         stage,
         deal_amount: amount,
         payment_type: paymentType,
@@ -135,15 +149,18 @@ export function DealFormDialog({ trigger }: { trigger: React.ReactNode }) {
       if (collaboratorSet.size > 0) {
         payload.collaborators = Array.from(collaboratorSet);
       }
+      if (responsibleIds.length > 0) {
+        payload.responsibles = responsibleIds;
+      }
       return deals.create(payload);
     },
     onSuccess: (deal) => {
       qc.invalidateQueries({ queryKey: ["deals"] });
       qc.invalidateQueries({ queryKey: ["users", "collaborator"] });
-      toast.success("Заказ создан.");
+      toast.success("Проект создан.");
       setOpen(false);
       reset();
-      router.push(`/deals/${deal.id}`);
+      router.push(`/projects/${deal.id}`);
     },
     onError: (err) => toast.error(asApiError(err).message),
   });
@@ -154,10 +171,11 @@ export function DealFormDialog({ trigger }: { trigger: React.ReactNode }) {
   }
 
   const canSubmit =
+    !!name.trim() &&
     !!amount &&
     !!dateEnd &&
     (!showsClientControls ||
-      (clientMode === "existing" && selectedUserId !== "") ||
+      clientMode === "existing" ||
       (clientMode === "new" &&
         !!newUsername &&
         !!newEmail &&
@@ -169,14 +187,24 @@ export function DealFormDialog({ trigger }: { trigger: React.ReactNode }) {
       <DialogContent className="max-w-[540px]">
         <DialogHeader
           eyebrow="Работа · Новый"
-          title="Новый заказ"
+          title="Новый проект"
           description={
             showsClientControls
-              ? "Выберите клиента или создайте новый аккаунт. Заказ будет привязан к клиенту."
-              : "Создайте договор/заказ — заказ будет привязан к вашему аккаунту."
+              ? "Клиента можно выбрать, создать или оставить проект без клиента."
+              : "Создайте проект — он будет привязан к вашему аккаунту."
           }
         />
         <form onSubmit={submit} className="flex flex-col gap-4 max-h-[70vh] overflow-y-auto scrollbar-thin pr-1">
+          <Field label="Название проекта">
+            <Input
+              placeholder="CRM для «Алтын Маркет»"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              autoFocus
+              required
+            />
+          </Field>
+
           {showsClientControls && (
             <section>
               <label className="block text-[12px] font-medium text-ink-2 mb-1.5">
@@ -212,9 +240,8 @@ export function DealFormDialog({ trigger }: { trigger: React.ReactNode }) {
                         );
                       }
                     }}
-                    required
                   >
-                    <option value="">— выберите основного клиента —</option>
+                    <option value="">Без клиента</option>
                     {collaboratorList.map((u: User) => (
                       <option key={u.id} value={u.id}>
                         {clientDisplay(u)}
@@ -285,7 +312,7 @@ export function DealFormDialog({ trigger }: { trigger: React.ReactNode }) {
                   <p className="text-[11px] text-ink-3 leading-relaxed">
                     Аккаунт будет создан с ролью <code>collaborator</code>.
                     После создания клиент сможет войти и видеть только этот
-                    заказ.
+                    проект.
                   </p>
                 </div>
               )}
@@ -339,17 +366,23 @@ export function DealFormDialog({ trigger }: { trigger: React.ReactNode }) {
                 />
               </Field>
             </div>
-            <Field label="Стадия">
+            <Field label="Статус проекта">
               <select
                 className="h-9 w-full bg-canvas border border-hairline-strong rounded-md px-3 text-[14px] text-ink hover:border-ink-5 focus:border-accent focus:shadow-[0_0_0_3px_rgba(35,131,226,0.18)] outline-none transition-all cursor-pointer"
                 value={stage}
                 onChange={(e) => setStage(e.target.value)}
               >
-                <option value="active">Активный</option>
-                <option value="completed">Выполнен</option>
-                <option value="cancelled">Отменён</option>
+                <option value="active">В процессе</option>
+                <option value="completed">Выполнено</option>
+                <option value="cancelled">Отменено</option>
               </select>
             </Field>
+            <ResponsibleMultiSelect
+              users={responsibleList}
+              selectedIds={responsibleIds}
+              onChange={setResponsibleIds}
+              loading={responsiblesQ.isLoading}
+            />
           </section>
 
           <div className="flex items-center justify-end gap-2 pt-3 border-t border-hairline">
@@ -367,7 +400,7 @@ export function DealFormDialog({ trigger }: { trigger: React.ReactNode }) {
               size="md"
               disabled={!canSubmit || create.isPending}
             >
-              {create.isPending ? "Создаём…" : "Создать заказ"}
+              {create.isPending ? "Создаём…" : "Создать проект"}
             </Button>
           </div>
         </form>
@@ -405,6 +438,98 @@ function clientDisplay(u: User): string {
   const name = `${u.first_name ?? ""} ${u.last_name ?? ""}`.trim();
   if (name) return `${name} · ${u.email}`;
   return `${u.username} · ${u.email}`;
+}
+
+function userShortName(u: User): string {
+  return `${u.first_name ?? ""} ${u.last_name ?? ""}`.trim() || u.username || u.email;
+}
+
+function ResponsibleMultiSelect({
+  users: list,
+  selectedIds,
+  onChange,
+  loading,
+}: {
+  users: User[];
+  selectedIds: number[];
+  onChange: (next: number[]) => void;
+  loading?: boolean;
+}) {
+  const selected = list.filter((u) => selectedIds.includes(u.id));
+
+  function toggle(id: number) {
+    if (selectedIds.includes(id)) {
+      onChange(selectedIds.filter((x) => x !== id));
+    } else {
+      onChange([...selectedIds, id]);
+    }
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1.5">
+        <label className="text-[12px] font-medium text-ink-2">
+          Ответственные
+        </label>
+        <span className="text-[11px] text-ink-4">
+          {selected.length} выбрано
+        </span>
+      </div>
+      {selected.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mb-2">
+          {selected.map((u) => (
+            <span
+              key={u.id}
+              className="inline-flex items-center gap-1.5 h-7 pl-1 pr-1.5 rounded-full bg-tag-green-bg text-tag-green-fg text-[12px]"
+            >
+              <Avatar name={userShortName(u)} size={20} className="text-[10px]" />
+              <span className="max-w-[160px] truncate">{userShortName(u)}</span>
+              <button
+                type="button"
+                onClick={() => toggle(u.id)}
+                className="h-4 w-4 grid place-items-center rounded-full hover:bg-canvas/60 transition-colors"
+                aria-label="Убрать"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      <div className="rounded-md border border-hairline-strong bg-canvas max-h-[160px] overflow-y-auto scrollbar-thin">
+        {loading ? (
+          <div className="text-[12px] text-ink-4 px-3 py-4 text-center">
+            Загрузка сотрудников…
+          </div>
+        ) : list.length === 0 ? (
+          <div className="text-[12px] text-ink-4 px-3 py-4 text-center">
+            Сотрудников пока нет
+          </div>
+        ) : (
+          list.map((u) => {
+            const picked = selectedIds.includes(u.id);
+            return (
+              <button
+                key={u.id}
+                type="button"
+                onClick={() => toggle(u.id)}
+                className="w-full flex items-center gap-2 px-2 h-9 text-[13px] text-left hover:bg-surface-2 transition-colors"
+              >
+                <Avatar name={userShortName(u)} size={20} className="text-[10px]" />
+                <span className="flex-1 min-w-0">
+                  <span className="block text-ink truncate">{userShortName(u)}</span>
+                  <span className="block text-[11px] text-ink-4 truncate">
+                    {u.email}
+                  </span>
+                </span>
+                {picked && <Check className="h-3.5 w-3.5 text-accent shrink-0" />}
+              </button>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
 }
 
 function CollaboratorMultiSelect({

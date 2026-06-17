@@ -12,6 +12,7 @@ import {
   TrendingUp,
   User2,
   Wallet as WalletIcon,
+  CalendarCheck,
 } from "lucide-react";
 import type { EmployeePermissionField } from "@/lib/types";
 
@@ -33,9 +34,9 @@ export const NAV: { label: string; items: NavItem[] }[] = [
   {
     label: "Работа",
     items: [
-      // Everyone with an account can see deals: employees see all (or whatever
-      // their permissions allow), collaborators see only their own orders.
-      { href: "/deals", label: "Заказы", icon: Briefcase },
+      // Everyone with an account can see projects: employees see all (or whatever
+      // their permissions allow), collaborators see only their own projects.
+      { href: "/projects", label: "Проекты", icon: Briefcase },
     ],
   },
   {
@@ -58,6 +59,13 @@ export const NAV: { label: string; items: NavItem[] }[] = [
         href: "/spendings",
         label: "Расходы",
         icon: Receipt,
+        roles: ["employee"],
+        requires: "accounting_can_retrieve",
+      },
+      {
+        href: "/monthly-obligations",
+        label: "Обязательные",
+        icon: CalendarCheck,
         roles: ["employee"],
         requires: "accounting_can_retrieve",
       },
