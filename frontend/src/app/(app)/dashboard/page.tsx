@@ -514,6 +514,7 @@ function EmployeeDashboard({
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [viewMode, setViewMode] = useState<DashboardViewMode>("tasks");
+  const currentViewMode: DashboardViewMode = canSeeAccounting ? viewMode : "tasks";
 
   const filters: DashboardFilters = useMemo(() => {
     const f: DashboardFilters = { period, group_by: groupBy };
@@ -525,7 +526,7 @@ function EmployeeDashboard({
   const analyticsQ = useQuery({
     queryKey: ["dashboard-analytics", filters],
     queryFn: () => dashboard.analytics(filters),
-    enabled: canSeeAccounting && viewMode === "analytics",
+    enabled: canSeeAccounting && currentViewMode === "analytics",
   });
 
   const myTasksQ = useQuery({
@@ -569,14 +570,15 @@ function EmployeeDashboard({
           </h1>
         </header>
 
-        <DashboardModeSwitch
-          mode={viewMode}
-          onChange={setViewMode}
-          canSeeAccounting={canSeeAccounting}
-          openTasks={myTasksQ.data?.summary.open}
-        />
+        {canSeeAccounting && (
+          <DashboardModeSwitch
+            mode={currentViewMode}
+            onChange={setViewMode}
+            openTasks={myTasksQ.data?.summary.open}
+          />
+        )}
 
-        {viewMode === "tasks" && myTasksQ.isError && (
+        {currentViewMode === "tasks" && myTasksQ.isError && (
           <Panel className="p-6 mb-6">
             <div className="flex items-start gap-4">
               <div className="h-10 w-10 grid place-items-center bg-tag-red-bg text-tag-red-fg rounded-md">
@@ -594,22 +596,18 @@ function EmployeeDashboard({
           </Panel>
         )}
 
-        {viewMode === "tasks" && myTasksQ.isLoading && (
+        {currentViewMode === "tasks" && myTasksQ.isLoading && (
           <Panel className="p-12 mb-6 text-center text-[13px] text-ink-3">
             Загружаем ваши задачи…
           </Panel>
         )}
 
-        {viewMode === "tasks" && myTasksQ.data && (
+        {currentViewMode === "tasks" && myTasksQ.data && (
           <MyTasksPanel analytics={myTasksQ.data} />
         )}
 
-        {viewMode === "analytics" && !canSeeAccounting && (
-          <AnalyticsLockedPanel />
-        )}
-
         {/* Period & group controls */}
-        {viewMode === "analytics" && canSeeAccounting && (
+        {currentViewMode === "analytics" && canSeeAccounting && (
           <section className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
             <div className="flex items-center gap-2 flex-wrap">
               <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
@@ -681,7 +679,7 @@ function EmployeeDashboard({
           </section>
         )}
 
-        {viewMode === "analytics" && canSeeAccounting && analyticsQ.isError && (
+        {currentViewMode === "analytics" && canSeeAccounting && analyticsQ.isError && (
           <Panel className="p-6 mb-6">
             <div className="flex items-start gap-4">
               <div className="h-10 w-10 grid place-items-center bg-tag-red-bg text-tag-red-fg rounded-md">
@@ -699,13 +697,13 @@ function EmployeeDashboard({
           </Panel>
         )}
 
-        {viewMode === "analytics" && canSeeAccounting && analyticsQ.isLoading && (
+        {currentViewMode === "analytics" && canSeeAccounting && analyticsQ.isLoading && (
           <Panel className="p-12 text-center text-[13px] text-ink-3">
             Загружаем аналитику…
           </Panel>
         )}
 
-        {viewMode === "analytics" && canSeeAccounting && data && finance && tasks && (
+        {currentViewMode === "analytics" && canSeeAccounting && data && finance && tasks && (
           <>
             {/* KPI cards */}
             <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 mb-8 stagger">
@@ -905,12 +903,10 @@ function EmployeeDashboard({
 function DashboardModeSwitch({
   mode,
   onChange,
-  canSeeAccounting,
   openTasks,
 }: {
   mode: DashboardViewMode;
   onChange: (mode: DashboardViewMode) => void;
-  canSeeAccounting: boolean;
   openTasks?: number;
 }) {
   const options: {
@@ -939,21 +935,18 @@ function DashboardModeSwitch({
         {options.map((option) => {
           const Icon = option.icon;
           const active = mode === option.key;
-          const locked = option.key === "analytics" && !canSeeAccounting;
 
           return (
             <button
               key={option.key}
               type="button"
-              disabled={locked}
               aria-pressed={active}
               onClick={() => onChange(option.key)}
               className={cn(
                 "h-14 sm:min-w-[210px] rounded-md px-3 text-left transition-colors flex items-center gap-3",
                 active
                   ? "bg-canvas border border-hairline shadow-card text-ink"
-                  : "border border-transparent text-ink-3 hover:text-ink hover:bg-canvas/60",
-                locked && "opacity-55 cursor-not-allowed hover:bg-transparent"
+                  : "border border-transparent text-ink-3 hover:text-ink hover:bg-canvas/60"
               )}
             >
               <span
@@ -974,11 +967,6 @@ function DashboardModeSwitch({
                       {openTasks}
                     </span>
                   )}
-                  {locked && (
-                    <span className="hidden sm:inline text-[11px] text-ink-4">
-                      нет доступа
-                    </span>
-                  )}
                 </span>
                 <span className="block text-[11px] text-ink-3 truncate">
                   {option.description}
@@ -989,27 +977,6 @@ function DashboardModeSwitch({
         })}
       </div>
     </section>
-  );
-}
-
-function AnalyticsLockedPanel() {
-  return (
-    <Panel className="p-6 mb-6">
-      <div className="flex items-start gap-4">
-        <div className="h-10 w-10 grid place-items-center bg-surface-2 text-ink-3 rounded-md border border-hairline">
-          <Activity className="h-4 w-4" />
-        </div>
-        <div className="flex-1">
-          <h3 className="text-[14px] text-ink font-medium">
-            Аналитика недоступна
-          </h3>
-          <p className="text-[13px] text-ink-3 mt-1 max-w-[62ch]">
-            Для финансовой аналитики нужен доступ accounting_can_retrieve.
-            Вкладка задач остаётся доступной для вашей личной загрузки.
-          </p>
-        </div>
-      </div>
-    </Panel>
   );
 }
 

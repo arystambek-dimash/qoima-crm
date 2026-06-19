@@ -24,6 +24,8 @@ export type NavItem = {
   roles?: ("collaborator" | "employee")[];
   /** For employees, show only when they have this permission. */
   requires?: EmployeePermissionField;
+  /** For employees, show when they have at least one of these permissions. */
+  requiresAny?: EmployeePermissionField[];
 };
 
 export const NAV: { label: string; items: NavItem[] }[] = [
@@ -74,6 +76,12 @@ export const NAV: { label: string; items: NavItem[] }[] = [
         label: "Кошелёк",
         icon: WalletIcon,
         roles: ["employee"],
+        requiresAny: [
+          "wallets_can_view_balance",
+          "wallets_can_create",
+          "wallets_can_update",
+          "wallets_can_delete",
+        ],
       },
     ],
   },
@@ -100,6 +108,11 @@ export function useNavVisibility(): (item: NavItem) => boolean {
       // Admin-equivalent (employees_can_create) sees everything
       if (employee?.employees_can_create) return true;
       return Boolean(employee?.[item.requires]);
+    }
+    if (item.requiresAny) {
+      // Admin-equivalent (employees_can_create) sees everything
+      if (employee?.employees_can_create) return true;
+      return item.requiresAny.some((field) => Boolean(employee?.[field]));
     }
     return true;
   };

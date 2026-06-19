@@ -20,7 +20,9 @@ import { asApiError } from "@/lib/api";
 import {
   useHasPermission,
   useIsSuperuser,
+  useRole,
 } from "@/lib/permissions";
+import { PermissionDenied } from "@/components/permission-gate";
 import { formatCurrency, cn, plural } from "@/lib/utils";
 import { walletActionMeta } from "@/lib/wallet-labels";
 import { userDisplayName } from "@/lib/user-helpers";
@@ -56,11 +58,25 @@ function numericAmount(value: number | string | null | undefined) {
 }
 
 export default function WalletsPage() {
+  const role = useRole();
   const isSuper = useIsSuperuser();
+  const canView = useHasPermission("wallets_can_view_balance");
   const canCreate = useHasPermission("wallets_can_create");
   const canUpdate = useHasPermission("wallets_can_update");
   const canDelete = useHasPermission("wallets_can_delete");
 
+  const permissionsLoading =
+    canView.isLoading ||
+    canCreate.isLoading ||
+    canUpdate.isLoading ||
+    canDelete.isLoading;
+  const allowed =
+    isSuper ||
+    (role === "employee" &&
+      (canView.granted ||
+        canCreate.granted ||
+        canUpdate.granted ||
+        canDelete.granted));
   const canCreateWallet = isSuper || canCreate.granted;
   const canUpdateWallet = isSuper || canUpdate.granted;
   const canDeleteWallet = isSuper || canDelete.granted;
@@ -70,14 +86,17 @@ export default function WalletsPage() {
   const listQ = useQuery({
     queryKey: ["wallets"],
     queryFn: wallets.list,
+    enabled: allowed,
   });
   const currentQ = useQuery({
     queryKey: ["wallets-current"],
     queryFn: wallets.current,
+    enabled: allowed,
   });
   const logsQ = useQuery({
     queryKey: ["wallets-logs"],
     queryFn: wallets.logs,
+    enabled: allowed,
   });
 
   const allWallets = useMemo(() => listQ.data ?? [], [listQ.data]);
@@ -113,6 +132,25 @@ export default function WalletsPage() {
     : monthlyDelta > 0
     ? `+${formatCurrency(monthlyDelta)} за 30 дней`
     : `${formatCurrency(monthlyDelta)} за 30 дней`;
+
+  if (permissionsLoading) {
+    return (
+      <main className="flex-1 px-4 sm:px-6 lg:px-10 py-10 max-w-[1280px] mx-auto w-full">
+        <Panel className="p-12 text-center text-[13px] text-ink-3">
+          Проверяем доступ…
+        </Panel>
+      </main>
+    );
+  }
+
+  if (!allowed) {
+    return (
+      <PermissionDenied
+        title="У вас нет доступа к этой странице"
+        detail="Эту страницу видят только сотрудники с правами кошелька."
+      />
+    );
+  }
 
   return (
     <>
