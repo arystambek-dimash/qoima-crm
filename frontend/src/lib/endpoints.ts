@@ -2,6 +2,7 @@ import { api } from "./api";
 import type {
   DashboardAnalytics,
   DashboardFilters,
+  DashboardMyTasksAnalytics,
   Deal,
   DealCreate,
   DealFile,
@@ -439,6 +440,12 @@ export const dashboard = {
     api
       .get<DashboardAnalytics>("/dashboard/analytics/", {
         params: dashboardParams(filters),
+      })
+      .then((r) => r.data),
+  myTasks: (limit = 12) =>
+    api
+      .get<DashboardMyTasksAnalytics>("/dashboard/my-tasks/", {
+        params: { limit },
       })
       .then((r) => r.data),
 };

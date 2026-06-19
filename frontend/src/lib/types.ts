@@ -627,6 +627,61 @@ export interface DashboardTasks {
   by_date_term: DashboardTasksByDate[];
 }
 
+export type DashboardTaskUrgency =
+  | "overdue"
+  | "today"
+  | "next_3_days"
+  | "next_7_days"
+  | "later";
+
+export interface DashboardMyTasksSummary {
+  assigned_total: number;
+  open: number;
+  completed: number;
+  cancelled: number;
+  overdue: number;
+  due_today: number;
+  due_next_3_days: number;
+  due_next_7_days: number;
+  workload: {
+    percent: number;
+    label: string;
+    points: number;
+    capacity_points: number;
+  };
+}
+
+export interface DashboardMyTasksByType {
+  type: string;
+  count: number;
+}
+
+export interface DashboardMyTaskItem {
+  id: number;
+  name: string;
+  type: string;
+  status: TaskStatus;
+  date_start: string;
+  date_end: string;
+  days_left: number;
+  urgency: DashboardTaskUrgency;
+  category: number | null;
+  category_name: string;
+  onboard: number | null;
+  onboard_name: string;
+  deal: number | null;
+  deal_name: string;
+  approval_status: TaskApprovalStatus;
+  approval_action: TaskApprovalAction;
+}
+
+export interface DashboardMyTasksAnalytics {
+  summary: DashboardMyTasksSummary;
+  by_status: Record<TaskStatus, number>;
+  by_type: DashboardMyTasksByType[];
+  tasks: DashboardMyTaskItem[];
+}
+
 export interface DashboardAnalytics {
   meta: {
     period: DashboardPeriod;

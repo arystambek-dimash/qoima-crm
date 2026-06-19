@@ -15,7 +15,6 @@ import { Badge } from "@/components/ui/badge";
 import { Table, THead, TR, TH, TD } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { PermissionDenied } from "@/components/permission-gate";
 import { useNow } from "@/lib/use-now";
 import { useChartColors } from "@/lib/use-chart-colors";
 import {
@@ -36,22 +35,20 @@ import { typeMetaForIncome } from "@/lib/income-type-meta";
 import { typeMetaForSpending } from "@/lib/spending-type-meta";
 import {
   ArrowUpRight,
+  Activity,
   AlertTriangle,
-  Briefcase,
+  CalendarClock,
   CheckCircle2,
-  Circle,
   ClipboardCheck,
-  ClipboardList,
   Clock,
+  Gauge,
   ListChecks,
-  Loader2,
+  Target,
   X,
   XCircle,
 } from "lucide-react";
 import {
   Area,
-  Bar,
-  BarChart,
   CartesianGrid,
   Cell,
   ComposedChart,
@@ -67,6 +64,10 @@ import type {
   DashboardFilters,
   DashboardPeriod,
   DashboardGroupBy,
+  DashboardMyTaskItem,
+  DashboardMyTasksAnalytics,
+  DashboardTaskUrgency,
+  TaskStatus,
 } from "@/lib/types";
 
 const MASKED_AMOUNT = "******";
@@ -495,6 +496,8 @@ const GROUP_OPTIONS: { key: DashboardGroupBy; label: string }[] = [
   { key: "year", label: "По годам" },
 ];
 
+type DashboardViewMode = "tasks" | "analytics";
+
 function EmployeeDashboard({
   c,
   now,
@@ -510,6 +513,7 @@ function EmployeeDashboard({
   const [groupBy, setGroupBy] = useState<DashboardGroupBy>("day");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
+  const [viewMode, setViewMode] = useState<DashboardViewMode>("tasks");
 
   const filters: DashboardFilters = useMemo(() => {
     const f: DashboardFilters = { period, group_by: groupBy };
@@ -521,23 +525,13 @@ function EmployeeDashboard({
   const analyticsQ = useQuery({
     queryKey: ["dashboard-analytics", filters],
     queryFn: () => dashboard.analytics(filters),
-    enabled: canSeeAccounting,
+    enabled: canSeeAccounting && viewMode === "analytics",
   });
 
-  // Без accounting-доступа показываем простую заглушку и кнопку — мы не
-  // блокируем страницу полностью, потому что обычный сотрудник тоже
-  // может зайти на дашборд (просто без чисел).
-  if (!canSeeAccounting) {
-    return (
-      <>
-        <Topbar eyebrow="Рабочее пространство" title="Главная" />
-        <PermissionDenied
-          title="Аналитика недоступна"
-          detail="Запросите у администратора право «accounting_can_retrieve», чтобы видеть финансовые показатели и графики."
-        />
-      </>
-    );
-  }
+  const myTasksQ = useQuery({
+    queryKey: ["dashboard-my-tasks"],
+    queryFn: () => dashboard.myTasks(12),
+  });
 
   const data = analyticsQ.data;
   const finance = data?.finance;
@@ -568,77 +562,126 @@ function EmployeeDashboard({
           <h1 className="font-display text-[24px] sm:text-[28px] md:text-[32px] tracking-tight text-ink text-balance">
             Добро пожаловать.{" "}
             <span className="font-normal text-ink-3">
-              Сводка по доходам, расходам и задачам.
+              {canSeeAccounting
+                ? "Сводка по вашим задачам и финансам."
+                : "Сводка по вашим задачам и загрузке."}
             </span>
           </h1>
         </header>
 
+        <DashboardModeSwitch
+          mode={viewMode}
+          onChange={setViewMode}
+          canSeeAccounting={canSeeAccounting}
+          openTasks={myTasksQ.data?.summary.open}
+        />
+
+        {viewMode === "tasks" && myTasksQ.isError && (
+          <Panel className="p-6 mb-6">
+            <div className="flex items-start gap-4">
+              <div className="h-10 w-10 grid place-items-center bg-tag-red-bg text-tag-red-fg rounded-md">
+                <AlertTriangle className="h-4 w-4" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-[14px] text-ink font-medium">
+                  Не удалось загрузить задачи
+                </h3>
+                <p className="text-[12px] font-mono text-ink-4 mt-1">
+                  GET /api/dashboard/my-tasks/
+                </p>
+              </div>
+            </div>
+          </Panel>
+        )}
+
+        {viewMode === "tasks" && myTasksQ.isLoading && (
+          <Panel className="p-12 mb-6 text-center text-[13px] text-ink-3">
+            Загружаем ваши задачи…
+          </Panel>
+        )}
+
+        {viewMode === "tasks" && myTasksQ.data && (
+          <MyTasksPanel analytics={myTasksQ.data} />
+        )}
+
+        {viewMode === "analytics" && !canSeeAccounting && (
+          <AnalyticsLockedPanel />
+        )}
+
         {/* Period & group controls */}
-        <section className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-              <span className="text-[12px] text-ink-3">Период:</span>
-              {PERIOD_OPTIONS.map((p) => (
-                <Chip
-                  key={p.key}
-                  active={period === p.key && !fromDate && !toDate}
+        {viewMode === "analytics" && canSeeAccounting && (
+          <section className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+                <span className="text-[12px] text-ink-3">Период:</span>
+                {PERIOD_OPTIONS.map((p) => (
+                  <Chip
+                    key={p.key}
+                    active={period === p.key && !fromDate && !toDate}
+                    onClick={() => {
+                      setPeriod(p.key);
+                      setFromDate("");
+                      setToDate("");
+                    }}
+                    label={p.label}
+                  />
+                ))}
+              </div>
+              <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+                <span className="text-[12px] text-ink-3 md:ml-2">
+                  Группировка:
+                </span>
+                {GROUP_OPTIONS.map((g) => (
+                  <Chip
+                    key={g.key}
+                    active={groupBy === g.key}
+                    onClick={() => setGroupBy(g.key)}
+                    label={g.label}
+                  />
+                ))}
+              </div>
+            </div>
+            <div className="flex flex-wrap items-end gap-2">
+              <div className="flex-1 min-w-[140px]">
+                <label className="text-[11px] text-ink-3 block mb-1">
+                  С даты
+                </label>
+                <Input
+                  type="date"
+                  value={fromDate}
+                  onChange={(e) => setFromDate(e.target.value)}
+                  className="h-8 w-full sm:w-[140px] text-[12px]"
+                />
+              </div>
+              <div className="flex-1 min-w-[140px]">
+                <label className="text-[11px] text-ink-3 block mb-1">
+                  По дату
+                </label>
+                <Input
+                  type="date"
+                  value={toDate}
+                  onChange={(e) => setToDate(e.target.value)}
+                  className="h-8 w-full sm:w-[140px] text-[12px]"
+                />
+              </div>
+              {(fromDate || toDate) && (
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={() => {
-                    setPeriod(p.key);
                     setFromDate("");
                     setToDate("");
                   }}
-                  label={p.label}
-                />
-              ))}
+                >
+                  <X className="h-3.5 w-3.5" />
+                  Сбросить
+                </Button>
+              )}
             </div>
-            <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-              <span className="text-[12px] text-ink-3 md:ml-2">Группировка:</span>
-              {GROUP_OPTIONS.map((g) => (
-                <Chip
-                  key={g.key}
-                  active={groupBy === g.key}
-                  onClick={() => setGroupBy(g.key)}
-                  label={g.label}
-                />
-              ))}
-            </div>
-          </div>
-          <div className="flex flex-wrap items-end gap-2">
-            <div className="flex-1 min-w-[140px]">
-              <label className="text-[11px] text-ink-3 block mb-1">С даты</label>
-              <Input
-                type="date"
-                value={fromDate}
-                onChange={(e) => setFromDate(e.target.value)}
-                className="h-8 w-full sm:w-[140px] text-[12px]"
-              />
-            </div>
-            <div className="flex-1 min-w-[140px]">
-              <label className="text-[11px] text-ink-3 block mb-1">По дату</label>
-              <Input
-                type="date"
-                value={toDate}
-                onChange={(e) => setToDate(e.target.value)}
-                className="h-8 w-full sm:w-[140px] text-[12px]"
-              />
-            </div>
-            {(fromDate || toDate) && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setFromDate("");
-                  setToDate("");
-                }}
-              >
-                <X className="h-3.5 w-3.5" />
-                Сбросить
-              </Button>
-            )}
-          </div>
-        </section>
+          </section>
+        )}
 
-        {analyticsQ.isError && (
+        {viewMode === "analytics" && canSeeAccounting && analyticsQ.isError && (
           <Panel className="p-6 mb-6">
             <div className="flex items-start gap-4">
               <div className="h-10 w-10 grid place-items-center bg-tag-red-bg text-tag-red-fg rounded-md">
@@ -656,13 +699,13 @@ function EmployeeDashboard({
           </Panel>
         )}
 
-        {analyticsQ.isLoading && (
+        {viewMode === "analytics" && canSeeAccounting && analyticsQ.isLoading && (
           <Panel className="p-12 text-center text-[13px] text-ink-3">
             Загружаем аналитику…
           </Panel>
         )}
 
-        {data && finance && tasks && (
+        {viewMode === "analytics" && canSeeAccounting && data && finance && tasks && (
           <>
             {/* KPI cards */}
             <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 mb-8 stagger">
@@ -852,9 +895,6 @@ function EmployeeDashboard({
                 c={c}
               />
             </section>
-
-            {/* Tasks block — always visible, with friendly empty state */}
-            <TasksPanel tasks={tasks} c={c} />
           </>
         )}
       </main>
@@ -862,229 +902,394 @@ function EmployeeDashboard({
   );
 }
 
-/* ----------- Tasks panel ----------- */
-
-function TasksPanel({
-  tasks,
-  c,
+function DashboardModeSwitch({
+  mode,
+  onChange,
+  canSeeAccounting,
+  openTasks,
 }: {
-  tasks: import("@/lib/types").DashboardTasks;
-  c: ReturnType<typeof useChartColors>;
+  mode: DashboardViewMode;
+  onChange: (mode: DashboardViewMode) => void;
+  canSeeAccounting: boolean;
+  openTasks?: number;
 }) {
-  const s = tasks.summary;
-  const hasTasks = s.total > 0;
+  const options: {
+    key: DashboardViewMode;
+    label: string;
+    description: string;
+    icon: React.ComponentType<{ className?: string }>;
+  }[] = [
+    {
+      key: "tasks",
+      label: "Задачи",
+      description: "Мои сроки и загрузка",
+      icon: ListChecks,
+    },
+    {
+      key: "analytics",
+      label: "Аналитика",
+      description: "Доходы, расходы, динамика",
+      icon: Activity,
+    },
+  ];
 
   return (
-    <Panel>
-      <PanelHeader>
-        <PanelTitle eyebrow="Задачи">Сводка</PanelTitle>
-        {hasTasks && (
-          <Link
-            href="/projects"
-            className="text-[13px] text-ink-3 hover:text-accent transition-colors inline-flex items-center gap-1"
-          >
-            К проектам
-            <ArrowUpRight className="h-3 w-3" />
-          </Link>
-        )}
-      </PanelHeader>
-      <PanelBody className="space-y-5">
-        {/* 4 tiles — always visible */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <TaskTile
-            icon={ListChecks}
-            label="Всего"
-            value={s.total}
-            tone="neutral"
-          />
-          <TaskTile
-            icon={Loader2}
-            label="В работе"
-            value={s.active}
-            tone="blue"
-          />
-          <TaskTile
-            icon={CheckCircle2}
-            label="Готово"
-            value={s.inactive}
-            tone="green"
-          />
-          <TaskTile
-            icon={AlertTriangle}
-            label="Просрочено"
-            value={s.overdue}
-            tone={s.overdue > 0 ? "red" : "neutral"}
-            danger={s.overdue > 0}
-          />
-        </div>
+    <section className="mb-6">
+      <div className="inline-grid grid-cols-2 w-full sm:w-auto rounded-lg border border-hairline-strong bg-surface p-1 shadow-card">
+        {options.map((option) => {
+          const Icon = option.icon;
+          const active = mode === option.key;
+          const locked = option.key === "analytics" && !canSeeAccounting;
 
-        {/* Body: chart when there are tasks, otherwise an inviting empty state */}
-        {hasTasks ? (
-          <TasksByTypeChart byType={tasks.by_type} c={c} />
-        ) : (
-          <TasksEmpty />
-        )}
-      </PanelBody>
+          return (
+            <button
+              key={option.key}
+              type="button"
+              disabled={locked}
+              aria-pressed={active}
+              onClick={() => onChange(option.key)}
+              className={cn(
+                "h-14 sm:min-w-[210px] rounded-md px-3 text-left transition-colors flex items-center gap-3",
+                active
+                  ? "bg-canvas border border-hairline shadow-card text-ink"
+                  : "border border-transparent text-ink-3 hover:text-ink hover:bg-canvas/60",
+                locked && "opacity-55 cursor-not-allowed hover:bg-transparent"
+              )}
+            >
+              <span
+                className={cn(
+                  "h-9 w-9 rounded-md grid place-items-center shrink-0",
+                  active ? "bg-accent-soft text-accent-ink" : "bg-canvas text-ink-4"
+                )}
+              >
+                <Icon className="h-4 w-4" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="flex items-center gap-2">
+                  <span className="text-[13px] font-semibold truncate">
+                    {option.label}
+                  </span>
+                  {option.key === "tasks" && typeof openTasks === "number" && (
+                    <span className="h-5 min-w-5 px-1.5 rounded-full bg-accent-soft text-accent-ink text-[11px] font-medium tabular-nums grid place-items-center">
+                      {openTasks}
+                    </span>
+                  )}
+                  {locked && (
+                    <span className="hidden sm:inline text-[11px] text-ink-4">
+                      нет доступа
+                    </span>
+                  )}
+                </span>
+                <span className="block text-[11px] text-ink-3 truncate">
+                  {option.description}
+                </span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function AnalyticsLockedPanel() {
+  return (
+    <Panel className="p-6 mb-6">
+      <div className="flex items-start gap-4">
+        <div className="h-10 w-10 grid place-items-center bg-surface-2 text-ink-3 rounded-md border border-hairline">
+          <Activity className="h-4 w-4" />
+        </div>
+        <div className="flex-1">
+          <h3 className="text-[14px] text-ink font-medium">
+            Аналитика недоступна
+          </h3>
+          <p className="text-[13px] text-ink-3 mt-1 max-w-[62ch]">
+            Для финансовой аналитики нужен доступ accounting_can_retrieve.
+            Вкладка задач остаётся доступной для вашей личной загрузки.
+          </p>
+        </div>
+      </div>
     </Panel>
   );
 }
 
-function TaskTile({
+/* ----------- Personal tasks panel ----------- */
+
+const TASK_STATUS_LABEL: Record<TaskStatus, string> = {
+  todo: "К выполнению",
+  in_progress: "В работе",
+  in_review: "На проверке",
+  done: "Готово",
+  cancelled: "Отменено",
+};
+
+const TASK_URGENCY_META: Record<
+  DashboardTaskUrgency,
+  { label: string; tone: "gray" | "blue" | "yellow" | "orange" | "red" }
+> = {
+  overdue: { label: "Просрочено", tone: "red" },
+  today: { label: "Сегодня", tone: "orange" },
+  next_3_days: { label: "До 3 дней", tone: "yellow" },
+  next_7_days: { label: "На неделе", tone: "blue" },
+  later: { label: "Позже", tone: "gray" },
+};
+
+function MyTasksPanel({ analytics }: { analytics: DashboardMyTasksAnalytics }) {
+  const s = analytics.summary;
+  const urgent = s.overdue + s.due_today + s.due_next_3_days;
+  const hasTasks = analytics.tasks.length > 0;
+
+  return (
+    <section className="mb-8 space-y-4 stagger">
+      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <StatCard
+          accent
+          label="Мои задачи"
+          value={String(s.assigned_total)}
+          caption={`${s.open} активных`}
+        />
+        <StatCard
+          label="Срочно"
+          value={String(urgent)}
+          delta={
+            s.overdue > 0
+              ? { value: `${s.overdue} просрочено`, positive: false }
+              : undefined
+          }
+          caption={`${s.due_today} сегодня · ${s.due_next_3_days} до 3 дней`}
+        />
+        <StatCard
+          label="Готово"
+          value={String(s.completed)}
+          caption={`${s.cancelled} отменено`}
+        />
+        <StatCard
+          label="Загрузка"
+          value={`${s.workload.percent}%`}
+          caption={s.workload.label}
+        />
+      </section>
+
+      <section className="grid grid-cols-1 xl:grid-cols-[1.35fr_0.85fr] gap-4">
+        <Panel>
+          <PanelHeader>
+            <PanelTitle eyebrow="Мои задачи">По срочности</PanelTitle>
+            <Link
+              href="/projects"
+              className="text-[13px] text-ink-3 hover:text-accent transition-colors inline-flex items-center gap-1"
+            >
+              К проектам
+              <ArrowUpRight className="h-3 w-3" />
+            </Link>
+          </PanelHeader>
+          <PanelBody>
+            {hasTasks ? (
+              <ul className="divide-y divide-hairline">
+                {analytics.tasks.map((task) => (
+                  <TaskQueueRow key={task.id} task={task} />
+                ))}
+              </ul>
+            ) : (
+              <div className="rounded-lg border border-dashed border-hairline-strong bg-surface/50 px-6 py-10 text-center">
+                <div className="mx-auto h-12 w-12 rounded-xl bg-canvas border border-hairline grid place-items-center mb-4 shadow-card">
+                  <CheckCircle2 className="h-5 w-5 text-success" />
+                </div>
+                <h3 className="font-display text-[20px] text-ink mb-1.5">
+                  Активных назначенных задач нет
+                </h3>
+                <p className="text-[13px] text-ink-3 max-w-[44ch] mx-auto">
+                  Когда вам назначат задачу, она появится здесь с ближайшим
+                  сроком наверху.
+                </p>
+              </div>
+            )}
+          </PanelBody>
+        </Panel>
+
+        <Panel>
+          <PanelHeader>
+            <PanelTitle eyebrow="Нагрузка">Занятость</PanelTitle>
+            <Badge tone={workloadTone(s.workload.percent)} dot>
+              {s.workload.label}
+            </Badge>
+          </PanelHeader>
+          <PanelBody className="space-y-5">
+            <div>
+              <div className="flex items-end justify-between gap-3 mb-3">
+                <div>
+                  <div className="font-display text-[42px] leading-none tabular-nums text-ink">
+                    {s.workload.percent}%
+                  </div>
+                  <p className="mt-1 text-[12px] text-ink-3">
+                    {s.workload.points} из {s.workload.capacity_points} пунктов
+                  </p>
+                </div>
+                <Gauge className="h-9 w-9 text-ink-4" />
+              </div>
+              <div className="h-2 rounded-full bg-surface-2 overflow-hidden">
+                <div
+                  className={cn("h-full rounded-full", workloadBar(s.workload.percent))}
+                  style={{ width: `${s.workload.percent}%` }}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
+              <MiniMetric icon={AlertTriangle} label="Просрочено" value={s.overdue} />
+              <MiniMetric icon={CalendarClock} label="Сегодня" value={s.due_today} />
+              <MiniMetric icon={Target} label="Неделя" value={s.due_next_7_days} />
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[12px] text-ink-3">Статусы</span>
+                <span className="text-[12px] text-ink-4 tabular-nums">
+                  {s.assigned_total}
+                </span>
+              </div>
+              <div className="space-y-1.5">
+                {(Object.keys(TASK_STATUS_LABEL) as TaskStatus[]).map((status) => (
+                  <StatusMeter
+                    key={status}
+                    label={TASK_STATUS_LABEL[status]}
+                    value={analytics.by_status[status] ?? 0}
+                    total={Math.max(s.assigned_total, 1)}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {analytics.by_type.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {analytics.by_type.map((row) => (
+                  <Badge key={row.type || "unknown"} tone="outline">
+                    {(row.type || "Без типа")} · {row.count}
+                  </Badge>
+                ))}
+              </div>
+            )}
+          </PanelBody>
+        </Panel>
+      </section>
+    </section>
+  );
+}
+
+function TaskQueueRow({ task }: { task: DashboardMyTaskItem }) {
+  const meta = TASK_URGENCY_META[task.urgency];
+  const title = task.deal_name || task.onboard_name || task.category_name || "Без проекта";
+  const body = (
+    <>
+      <div className="flex items-center gap-2 min-w-0">
+        <span className="h-8 w-8 rounded-md bg-surface-2 border border-hairline grid place-items-center shrink-0 text-ink-3">
+          <Activity className="h-3.5 w-3.5" />
+        </span>
+        <div className="min-w-0">
+          <p className="text-[13px] font-medium text-ink truncate">
+            {task.name}
+          </p>
+          <p className="text-[12px] text-ink-3 truncate">
+            {title} · {task.type || "задача"}
+          </p>
+        </div>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        <Badge tone={meta.tone} dot>
+          {meta.label}
+        </Badge>
+        <span className="hidden sm:inline text-[12px] text-ink-3 tabular-nums min-w-[92px] text-right">
+          {taskDueLabel(task.days_left)}
+        </span>
+      </div>
+    </>
+  );
+
+  return task.deal ? (
+    <Link
+      href={`/projects/${task.deal}` as never}
+      className="flex items-center justify-between gap-3 py-3 hover:bg-surface-2/70 transition-colors px-2 -mx-2 rounded-md"
+    >
+      {body}
+    </Link>
+  ) : (
+    <div className="flex items-center justify-between gap-3 py-3 px-2 -mx-2">
+      {body}
+    </div>
+  );
+}
+
+function MiniMetric({
   icon: Icon,
   label,
   value,
-  tone,
-  danger,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   value: number;
-  tone: "neutral" | "blue" | "green" | "red";
-  danger?: boolean;
 }) {
-  const toneCls: Record<string, { bg: string; ic: string; ring: string }> = {
-    neutral: {
-      bg: "bg-surface",
-      ic: "text-ink-3",
-      ring: "ring-1 ring-hairline",
-    },
-    blue: {
-      bg: "bg-tag-blue-bg/50",
-      ic: "text-tag-blue-fg",
-      ring: "ring-1 ring-tag-blue-fg/20",
-    },
-    green: {
-      bg: "bg-tag-green-bg/50",
-      ic: "text-tag-green-fg",
-      ring: "ring-1 ring-tag-green-fg/20",
-    },
-    red: {
-      bg: "bg-tag-red-bg/40",
-      ic: "text-danger",
-      ring: "ring-1 ring-danger/30",
-    },
-  };
-  const t = toneCls[tone];
   return (
-    <div
-      className={cn(
-        "relative rounded-lg p-4 flex items-center gap-3",
-        t.bg,
-        t.ring,
-        danger && "animate-[pulse_3s_ease-in-out_infinite]"
-      )}
-    >
-      <div
-        className={cn(
-          "h-10 w-10 rounded-md grid place-items-center shrink-0 bg-canvas/70 backdrop-blur",
-          t.ic
-        )}
-      >
-        <Icon className="h-4 w-4" />
-      </div>
-      <div className="flex flex-col leading-tight min-w-0">
-        <span className="font-display text-[26px] tabular-nums text-ink">
+    <div className="rounded-md bg-surface/70 border border-hairline p-3 min-w-0">
+      <div className="flex items-center justify-between gap-2">
+        <Icon className="h-3.5 w-3.5 text-ink-4 shrink-0" />
+        <span className="font-display text-[18px] tabular-nums text-ink">
           {value}
         </span>
-        <span className="text-[12px] text-ink-3">{label}</span>
       </div>
+      <div className="mt-2 text-[11px] text-ink-3 truncate">{label}</div>
     </div>
   );
 }
 
-function TasksByTypeChart({
-  byType,
-  c,
+function StatusMeter({
+  label,
+  value,
+  total,
 }: {
-  byType: import("@/lib/types").DashboardTasksByType[];
-  c: ReturnType<typeof useChartColors>;
+  label: string;
+  value: number;
+  total: number;
 }) {
-  if (byType.length === 0) {
-    // Have tasks aggregated by date but none grouped by type — possible if
-    // backend returns empty by_type. Show a small notice instead of nothing.
-    return (
-      <p className="text-[13px] text-ink-3 text-center py-6">
-        Нет данных для группировки по типу.
-      </p>
-    );
-  }
+  const pct = Math.round((value / total) * 100);
   return (
-    <div className="h-[240px]">
-      <ResponsiveContainer width="100%" height="100%">
-        <BarChart
-          data={byType}
-          margin={{ top: 10, right: 4, left: 0, bottom: 0 }}
-        >
-          <CartesianGrid stroke={c.hairline} vertical={false} />
-          <XAxis
-            dataKey="type"
-            stroke={c.ink4}
-            fontSize={11}
-            tickLine={false}
-            axisLine={false}
-          />
-          <YAxis
-            stroke={c.ink4}
-            fontSize={11}
-            tickLine={false}
-            axisLine={false}
-            allowDecimals={false}
-          />
-          <Tooltip
-            contentStyle={{
-              background: c.canvas,
-              border: `1px solid ${c.hairlineStrong}`,
-              borderRadius: 8,
-              fontSize: 12,
-              color: c.ink,
-            }}
-            formatter={(v: number | string, key) => [
-              v,
-              key === "active"
-                ? "В работе"
-                : key === "inactive"
-                ? "Закрыто"
-                : key === "overdue"
-                ? "Просрочено"
-                : "Всего",
-            ]}
-          />
-          <Bar dataKey="active" stackId="t" fill={c.accent} />
-          <Bar dataKey="inactive" stackId="t" fill="#3D9C47" />
-          <Bar dataKey="overdue" stackId="t" fill="#D8473A" radius={[4, 4, 0, 0]} />
-        </BarChart>
-      </ResponsiveContainer>
+    <div className="grid grid-cols-[96px_1fr_32px] items-center gap-2 text-[12px]">
+      <span className="text-ink-3 truncate">{label}</span>
+      <div className="h-1.5 rounded-full bg-surface-2 overflow-hidden">
+        <div
+          className="h-full rounded-full bg-accent"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <span className="text-right text-ink tabular-nums">{value}</span>
     </div>
   );
 }
 
-function TasksEmpty() {
-  return (
-    <div className="rounded-lg border border-dashed border-hairline-strong bg-surface/50 px-6 py-10 text-center">
-      <div className="mx-auto h-12 w-12 rounded-xl bg-canvas border border-hairline grid place-items-center mb-4 shadow-card">
-        <ClipboardList className="h-5 w-5 text-ink-3" />
-      </div>
-      <h3 className="font-display text-[20px] text-ink mb-1.5">
-        Задач за этот период нет
-      </h3>
-      <p className="text-[13px] text-ink-3 max-w-[44ch] mx-auto mb-5">
-        Задачи появляются автоматически, когда вы добавляете план работ к
-        проекту. Откройте любой проект и нажмите «Создать задачу».
-      </p>
-      <div className="flex items-center justify-center gap-2 flex-wrap">
-        <Link href="/projects">
-          <Button variant="primary" size="md">
-            <Briefcase className="h-3.5 w-3.5" />
-            К проектам
-          </Button>
-        </Link>
-        <span className="text-[11px] text-ink-4 inline-flex items-center gap-1">
-          <Circle className="h-2 w-2 fill-current" />
-          или поменяйте период выше
-        </span>
-      </div>
-    </div>
-  );
+function taskDueLabel(daysLeft: number) {
+  if (daysLeft < 0) {
+    const days = Math.abs(daysLeft);
+    return `${days} ${plural(days, "день", "дня", "дней")} назад`;
+  }
+
+  if (daysLeft === 0) return "сегодня";
+  if (daysLeft === 1) return "завтра";
+
+  return `через ${daysLeft} ${plural(daysLeft, "день", "дня", "дней")}`;
+}
+
+function workloadTone(percent: number): "gray" | "blue" | "yellow" | "orange" | "red" {
+  if (percent >= 90) return "red";
+  if (percent >= 70) return "orange";
+  if (percent >= 35) return "blue";
+  if (percent > 0) return "yellow";
+  return "gray";
+}
+
+function workloadBar(percent: number) {
+  if (percent >= 90) return "bg-danger";
+  if (percent >= 70) return "bg-tag-orange-fg";
+  if (percent >= 35) return "bg-accent";
+  if (percent > 0) return "bg-tag-yellow-fg";
+  return "bg-ink-5";
 }
 
 /* ----------- helpers ----------- */

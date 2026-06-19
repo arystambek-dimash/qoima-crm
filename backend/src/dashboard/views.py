@@ -2,7 +2,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from core.permissions import AccountingPermissions, can_view_wallet_balance
-from django.db.models import Count, Q, Sum
+from django.db.models import Case, Count, IntegerField, Q, Sum, Value, When
 from django.db.models.functions import TruncDate, TruncMonth, TruncWeek, TruncYear
 from django.utils import timezone
 from django.utils.dateparse import parse_date
@@ -24,6 +24,9 @@ class DashboardViewSet(viewsets.GenericViewSet):
 
     PERIODS = {"week", "month", "year", "all", "custom"}
     GROUPS = {"day", "week", "month", "year"}
+    TASK_LIMIT_DEFAULT = 12
+    TASK_LIMIT_MAX = 50
+    TASK_WORKLOAD_CAPACITY_POINTS = 12
     TRUNC_BY_GROUP = {
         "day": TruncDate,
         "week": TruncWeek,
@@ -56,6 +59,40 @@ class DashboardViewSet(viewsets.GenericViewSet):
                 "meta": params,
                 "finance": self._finance(incomes, spendings, params),
                 "tasks": self._tasks(tasks, params),
+            }
+        )
+
+    @action(detail=False, methods=["get"], url_path="my-tasks")
+    def my_tasks(self, request):
+        today = timezone.localdate()
+        limit = self._task_limit(request)
+        tasks = self._my_tasks_queryset(request.user)
+        open_tasks = tasks.filter(self._open_task_q())
+        summary = self._my_task_summary(tasks, open_tasks, today)
+
+        ordered_tasks = (
+            open_tasks.annotate(
+                urgency_order=Case(
+                    When(date_end__lt=today, then=Value(0)),
+                    When(date_end=today, then=Value(1)),
+                    When(date_end__lte=today + timedelta(days=3), then=Value(2)),
+                    When(date_end__lte=today + timedelta(days=7), then=Value(3)),
+                    default=Value(4),
+                    output_field=IntegerField(),
+                )
+            )
+            .order_by("urgency_order", "date_end", "id")[:limit]
+        )
+
+        return Response(
+            {
+                "summary": summary,
+                "by_status": self._my_tasks_by_status(tasks),
+                "by_type": self._my_tasks_by_type(open_tasks),
+                "tasks": [
+                    self._my_task_row(task, today)
+                    for task in ordered_tasks
+                ],
             }
         )
 
@@ -258,6 +295,164 @@ class DashboardViewSet(viewsets.GenericViewSet):
             return date(value.year, 1, 1)
 
         return value
+
+    def _task_limit(self, request):
+        raw_limit = request.query_params.get("limit", self.TASK_LIMIT_DEFAULT)
+
+        try:
+            limit = int(raw_limit)
+        except (TypeError, ValueError):
+            limit = self.TASK_LIMIT_DEFAULT
+
+        return max(1, min(limit, self.TASK_LIMIT_MAX))
+
+    def _my_tasks_queryset(self, user):
+        return (
+            Task.objects.filter(taskperformance__user=user)
+            .select_related(
+                "category",
+                "category__onboard",
+                "category__onboard__deal",
+            )
+            .distinct()
+        )
+
+    def _open_task_q(self):
+        return (
+            Q(is_active=True)
+            & ~Q(status__in=[Task.Status.DONE, Task.Status.CANCELLED])
+            & ~Q(approval_status=Task.ApprovalStatus.CANCELLED)
+        )
+
+    def _my_task_summary(self, tasks, open_tasks, today):
+        overdue = open_tasks.filter(date_end__lt=today).count()
+        due_today = open_tasks.filter(date_end=today).count()
+        due_next_3_days = open_tasks.filter(
+            date_end__gt=today,
+            date_end__lte=today + timedelta(days=3),
+        ).count()
+        due_next_7_days = open_tasks.filter(
+            date_end__gt=today,
+            date_end__lte=today + timedelta(days=7),
+        ).count()
+        open_count = open_tasks.count()
+        completed = tasks.filter(status=Task.Status.DONE).count()
+        cancelled = tasks.filter(
+            Q(status=Task.Status.CANCELLED)
+            | Q(approval_status=Task.ApprovalStatus.CANCELLED)
+        ).count()
+
+        return {
+            "assigned_total": tasks.count(),
+            "open": open_count,
+            "completed": completed,
+            "cancelled": cancelled,
+            "overdue": overdue,
+            "due_today": due_today,
+            "due_next_3_days": due_next_3_days,
+            "due_next_7_days": due_next_7_days,
+            "workload": self._workload(
+                open_count,
+                overdue,
+                due_today,
+                due_next_3_days,
+                due_next_7_days,
+            ),
+        }
+
+    def _workload(
+        self,
+        open_count,
+        overdue,
+        due_today,
+        due_next_3_days,
+        due_next_7_days,
+    ):
+        due_days_4_to_7 = max(due_next_7_days - due_next_3_days, 0)
+        points = (
+            open_count
+            + overdue * 2
+            + due_today * 1.5
+            + due_next_3_days * 0.75
+            + due_days_4_to_7 * 0.35
+        )
+        percent = min(
+            100,
+            round((points / self.TASK_WORKLOAD_CAPACITY_POINTS) * 100),
+        )
+
+        if percent == 0:
+            label = "Нет активных задач"
+        elif percent < 35:
+            label = "Низкая загрузка"
+        elif percent < 70:
+            label = "Нормальная загрузка"
+        elif percent < 90:
+            label = "Высокая загрузка"
+        else:
+            label = "Перегруз"
+
+        return {
+            "percent": percent,
+            "label": label,
+            "points": round(points, 1),
+            "capacity_points": self.TASK_WORKLOAD_CAPACITY_POINTS,
+        }
+
+    def _my_tasks_by_status(self, tasks):
+        counts = {status: 0 for status, _ in Task.Status.choices}
+        rows = tasks.values("status").annotate(count=Count("id")).order_by("status")
+
+        for row in rows:
+            counts[row["status"]] = row["count"]
+
+        return counts
+
+    def _my_tasks_by_type(self, open_tasks):
+        return list(
+            open_tasks.values("type")
+            .annotate(count=Count("id"))
+            .order_by("-count", "type")[:8]
+        )
+
+    def _my_task_row(self, task, today):
+        onboard = task.category.onboard if task.category_id else None
+        deal = onboard.deal if onboard and onboard.deal_id else None
+        days_left = (task.date_end - today).days
+
+        return {
+            "id": task.id,
+            "name": task.name,
+            "type": task.type,
+            "status": task.status,
+            "date_start": task.date_start,
+            "date_end": task.date_end,
+            "days_left": days_left,
+            "urgency": self._task_urgency(days_left),
+            "category": task.category_id,
+            "category_name": task.category.name if task.category_id else "",
+            "onboard": onboard.id if onboard else None,
+            "onboard_name": onboard.name if onboard else "",
+            "deal": deal.id if deal else None,
+            "deal_name": deal.name if deal else "",
+            "approval_status": task.approval_status,
+            "approval_action": task.approval_action,
+        }
+
+    def _task_urgency(self, days_left):
+        if days_left < 0:
+            return "overdue"
+
+        if days_left == 0:
+            return "today"
+
+        if days_left <= 3:
+            return "next_3_days"
+
+        if days_left <= 7:
+            return "next_7_days"
+
+        return "later"
 
     def _next_bucket(self, value, group_by):
         if group_by == "week":
