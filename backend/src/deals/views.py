@@ -140,7 +140,10 @@ class DealViewSet(
     @action(detail=True, methods=["post"], url_path="stages")
     def create_stage(self, request, *args, **kwargs):
         deal = self.get_object()
-        serializer = self.get_serializer(data=request.data)
+        serializer = self.get_serializer(
+            data=request.data,
+            context={"request": request, "view": self, "deal": deal},
+        )
         serializer.is_valid(raise_exception=True)
         serializer.save(deal=deal)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -153,7 +156,12 @@ class DealViewSet(
         if stage is None:
             return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        serializer = self.get_serializer(stage, data=request.data, partial=True)
+        serializer = self.get_serializer(
+            stage,
+            data=request.data,
+            partial=True,
+            context={"request": request, "view": self, "deal": deal},
+        )
         serializer.is_valid(raise_exception=True)
         serializer.save(deal=deal)
         return Response(serializer.data)

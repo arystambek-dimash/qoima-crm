@@ -116,6 +116,7 @@ export interface DealCreate {
 export interface DealStage {
   id: number;
   deal: number;
+  parent_stage: number | null;
   name: string;
   status: DealStageStatus;
   order: number;
@@ -127,6 +128,7 @@ export interface DealStage {
 
 export interface DealStageCreate {
   name: string;
+  parent_stage?: number | null;
   status?: DealStageStatus;
   order?: number;
   responsible?: number | null;

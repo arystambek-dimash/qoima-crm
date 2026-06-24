@@ -62,6 +62,13 @@ class DealStage(models.Model):
         COMPLETED = "completed", "Completed"
 
     deal = models.ForeignKey(to=Deal, on_delete=models.CASCADE, related_name="stages")
+    parent_stage = models.ForeignKey(
+        "self",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="sub_stages",
+    )
     name = models.CharField(max_length=120)
     status = models.CharField(
         max_length=16,

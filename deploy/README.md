@@ -7,11 +7,19 @@ This deployment uses one server, Docker Compose, and nginx.
 Create these secrets in GitHub repository settings:
 
 ```text
-DEPLOY_HOST=your-server-ip
-DEPLOY_USER=ubuntu
 DEPLOY_SSH_KEY=private SSH key for the ubuntu user
 PRODUCTION_ENV_FILE=full contents of the production .env file
 ```
+
+`DEPLOY_HOST` and `DEPLOY_USER` are optional because the workflow defaults to:
+
+```text
+DEPLOY_HOST=185.22.67.18
+DEPLOY_USER=ubuntu
+```
+
+If `PRODUCTION_ENV_FILE` is empty, the workflow keeps the existing `.env` on
+the server.
 
 Do not store server passwords or production passwords in git.
 
@@ -21,6 +29,23 @@ Optional repository variable:
 
 ```text
 DEPLOY_PATH=/home/ubuntu/projects/qoima-crm
+DEPLOY_PORT=22
+```
+
+## Deploy Flow
+
+Every push to `main` runs `.github/workflows/deploy.yml`.
+
+The workflow:
+
+```bash
+rsyncs the repository to /home/ubuntu/projects/qoima-crm
+keeps the server .env unless PRODUCTION_ENV_FILE is set
+docker compose --env-file .env up -d --build
+python manage.py ensure_superuser
+python manage.py set_telegram_webhook when Telegram env vars exist
+docker compose --env-file .env restart backend frontend nginx
+docker image prune -f
 ```
 
 ## Production .env

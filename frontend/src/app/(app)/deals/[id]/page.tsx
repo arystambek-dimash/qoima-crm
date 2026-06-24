@@ -609,6 +609,50 @@ const STAGE_STATUS_OPTIONS: { value: DealStageStatus; label: string }[] = [
   { value: "completed", label: "Выполнено" },
 ];
 
+type StageTreeNode = DealStage & { children: StageTreeNode[] };
+
+function compareProjectStages(a: DealStage, b: DealStage) {
+  return a.order - b.order || a.id - b.id;
+}
+
+function buildStageTree(stages: DealStage[]) {
+  const sorted = [...stages].sort(compareProjectStages);
+  const nodes = new Map<number, StageTreeNode>();
+  const roots: StageTreeNode[] = [];
+
+  for (const stage of sorted) {
+    nodes.set(stage.id, { ...stage, children: [] });
+  }
+
+  for (const stage of sorted) {
+    const node = nodes.get(stage.id)!;
+    const parent = stage.parent_stage ? nodes.get(stage.parent_stage) : null;
+
+    if (parent && parent.id !== node.id) {
+      parent.children.push(node);
+    } else {
+      roots.push(node);
+    }
+  }
+
+  return { sorted, roots };
+}
+
+function nextStageOrder(stages: DealStage[], parentStageId: number | null) {
+  const siblingOrders = stages
+    .filter((stage) => (stage.parent_stage ?? null) === parentStageId)
+    .map((stage) => stage.order);
+
+  return siblingOrders.length === 0 ? 1 : Math.max(...siblingOrders) + 1;
+}
+
+function countNestedStages(stage: StageTreeNode): number {
+  return stage.children.reduce(
+    (total, child) => total + 1 + countNestedStages(child),
+    0
+  );
+}
+
 function StagesTab({
   dealId,
   stages,
@@ -620,10 +664,8 @@ function StagesTab({
 }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
-  const sorted = useMemo(
-    () => [...stages].sort((a, b) => a.order - b.order || a.id - b.id),
-    [stages]
-  );
+  const [addParentStage, setAddParentStage] = useState<DealStage | null>(null);
+  const { sorted, roots } = useMemo(() => buildStageTree(stages), [stages]);
   const progress =
     sorted.length === 0
       ? 0
@@ -639,6 +681,7 @@ function StagesTab({
       qc.invalidateQueries({ queryKey: ["deal", dealId] });
       toast.success("Этап добавлен.");
       setOpen(false);
+      setAddParentStage(null);
     },
     onError: (err) => toast.error(asApiError(err).message),
   });
@@ -667,6 +710,11 @@ function StagesTab({
     onError: (err) => toast.error(asApiError(err).message),
   });
 
+  function openAddStage(parentStage: DealStage | null = null) {
+    setAddParentStage(parentStage);
+    setOpen(true);
+  }
+
   return (
     <Panel className="anim-fade">
       <PanelHeader>
@@ -676,7 +724,7 @@ function StagesTab({
             {progress}%
           </span>
           {canEdit && (
-            <Button variant="primary" size="sm" onClick={() => setOpen(true)}>
+            <Button variant="primary" size="sm" onClick={() => openAddStage()}>
               <Plus className="h-3.5 w-3.5" />
               Добавить этап
             </Button>
@@ -689,88 +737,38 @@ function StagesTab({
             Этапов пока нет.
           </div>
         ) : (
-          <div className="space-y-0">
-            {sorted.map((stage, idx) => {
-              const label = projectStageStatusLabel(stage.status);
-              return (
-                <div key={stage.id} className="relative flex gap-4 pb-5 last:pb-0">
-                  {idx < sorted.length - 1 && (
-                    <span className="absolute left-[15px] top-8 bottom-0 w-px bg-hairline-strong" />
-                  )}
-                  <div
-                    className={cn(
-                      "relative z-10 h-8 w-8 rounded-full grid place-items-center border text-[13px] font-medium shrink-0",
-                      stage.status === "completed"
-                        ? "bg-success text-white border-success"
-                        : stage.status === "in_progress"
-                        ? "bg-accent-soft text-accent-ink border-accent/40"
-                        : "bg-surface-2 text-ink-3 border-hairline-strong"
-                    )}
-                  >
-                    {stage.status === "completed" ? (
-                      <CheckCircle2 className="h-4 w-4" />
-                    ) : stage.status === "in_progress" ? (
-                      <Clock className="h-4 w-4" />
-                    ) : (
-                      idx + 1
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="text-[15px] font-medium text-ink">
-                        {stage.name}
-                      </h3>
-                      <Badge tone={label.tone} dot>
-                        {label.label}
-                      </Badge>
-                    </div>
-                    <div className="mt-1 text-[13px] text-ink-3">
-                      {stage.responsible_detail
-                        ? userDisplayName(stage.responsible_detail)
-                        : "Ответственный не назначен"}
-                      {stage.due_date ? ` · до ${formatDate(stage.due_date)}` : ""}
-                    </div>
-                  </div>
-                  {canEdit && (
-                    <div className="flex items-center gap-2">
-                      <select
-                        value={stage.status}
-                        onChange={(e) =>
-                          update.mutate({
-                            stageId: stage.id,
-                            payload: {
-                              status: e.target.value as DealStageStatus,
-                            },
-                          })
-                        }
-                        className="h-8 bg-canvas border border-hairline-strong rounded-md px-2 text-[13px] text-ink-2 hover:border-ink-5 transition-colors cursor-pointer"
-                      >
-                        {STAGE_STATUS_OPTIONS.map((o) => (
-                          <option key={o.value} value={o.value}>
-                            {o.label}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        onClick={() => remove.mutate(stage.id)}
-                        disabled={remove.isPending}
-                        className="h-8 w-8 grid place-items-center rounded text-ink-3 hover:text-danger hover:bg-tag-red-bg/30 transition-colors"
-                        title="Удалить этап"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+          <div className="overflow-x-auto pb-1">
+            <div className="space-y-4 md:min-w-[720px]">
+              {roots.map((stage, idx) => (
+                <StageBranch
+                  key={stage.id}
+                  stage={stage}
+                  indexLabel={String(idx + 1)}
+                  depth={0}
+                  canEdit={canEdit}
+                  removePending={remove.isPending}
+                  onAddSubStage={openAddStage}
+                  onUpdateStatus={(stageId, status) =>
+                    update.mutate({
+                      stageId,
+                      payload: { status },
+                    })
+                  }
+                  onRemove={(stageId) => remove.mutate(stageId)}
+                />
+              ))}
+            </div>
           </div>
         )}
         <AddStageDialog
           open={open}
-          onOpenChange={setOpen}
+          onOpenChange={(v) => {
+            setOpen(v);
+            if (!v) setAddParentStage(null);
+          }}
           employeesQEnabled={open}
-          nextOrder={sorted.length + 1}
+          parentStage={addParentStage}
+          nextOrder={nextStageOrder(sorted, addParentStage?.id ?? null)}
           onSubmit={(values) => add.mutate(values)}
           pending={add.isPending}
         />
@@ -779,10 +777,183 @@ function StagesTab({
   );
 }
 
+function StageBranch({
+  stage,
+  indexLabel,
+  depth,
+  canEdit,
+  removePending,
+  onAddSubStage,
+  onUpdateStatus,
+  onRemove,
+}: {
+  stage: StageTreeNode;
+  indexLabel: string;
+  depth: number;
+  canEdit: boolean;
+  removePending: boolean;
+  onAddSubStage: (stage: DealStage) => void;
+  onUpdateStatus: (stageId: number, status: DealStageStatus) => void;
+  onRemove: (stageId: number) => void;
+}) {
+  return (
+    <div className="relative flex flex-col gap-3 md:flex-row md:items-start">
+      <StageNodeCard
+        stage={stage}
+        indexLabel={indexLabel}
+        depth={depth}
+        canEdit={canEdit}
+        removePending={removePending}
+        onAddSubStage={onAddSubStage}
+        onUpdateStatus={onUpdateStatus}
+        onRemove={onRemove}
+      />
+      {stage.children.length > 0 && (
+        <div className="relative ml-4 border-l border-hairline-strong pl-6 md:ml-0 md:min-w-[300px] md:flex-1 md:border-l-0 md:pl-8">
+          <span className="hidden md:block absolute left-0 top-5 h-px w-8 bg-hairline-strong" />
+          {stage.children.length > 1 && (
+            <span className="hidden md:block absolute left-8 top-5 bottom-5 w-px bg-hairline-strong" />
+          )}
+          <div className="space-y-3">
+            {stage.children.map((child, idx) => (
+              <div key={child.id} className="relative pl-5 md:pl-6">
+                <span className="absolute left-[-25px] top-5 h-px w-[25px] bg-hairline-strong md:left-0 md:w-6" />
+                <StageBranch
+                  stage={child}
+                  indexLabel={`${indexLabel}.${idx + 1}`}
+                  depth={depth + 1}
+                  canEdit={canEdit}
+                  removePending={removePending}
+                  onAddSubStage={onAddSubStage}
+                  onUpdateStatus={onUpdateStatus}
+                  onRemove={onRemove}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StageNodeCard({
+  stage,
+  indexLabel,
+  depth,
+  canEdit,
+  removePending,
+  onAddSubStage,
+  onUpdateStatus,
+  onRemove,
+}: {
+  stage: StageTreeNode;
+  indexLabel: string;
+  depth: number;
+  canEdit: boolean;
+  removePending: boolean;
+  onAddSubStage: (stage: DealStage) => void;
+  onUpdateStatus: (stageId: number, status: DealStageStatus) => void;
+  onRemove: (stageId: number) => void;
+}) {
+  const label = projectStageStatusLabel(stage.status);
+  const nestedCount = countNestedStages(stage);
+  const indexTextSize = indexLabel.length > 3 ? "text-[10px]" : "text-[12px]";
+
+  return (
+    <div
+      className={cn(
+        "group w-full rounded-md border border-hairline-strong bg-canvas px-3 py-3 transition-colors hover:border-ink-5",
+        depth === 0 ? "md:w-[360px]" : "md:w-[300px]"
+      )}
+    >
+      <div className="flex items-start gap-3">
+        <div
+          className={cn(
+            "h-8 w-8 rounded-full grid place-items-center border font-medium shrink-0",
+            stage.status === "completed"
+              ? "bg-success text-white border-success"
+              : stage.status === "in_progress"
+              ? "bg-accent-soft text-accent-ink border-accent/40"
+              : "bg-surface-2 text-ink-3 border-hairline-strong",
+            indexTextSize
+          )}
+          title={indexLabel}
+        >
+          {stage.status === "completed" ? (
+            <CheckCircle2 className="h-4 w-4" />
+          ) : stage.status === "in_progress" ? (
+            <Clock className="h-4 w-4" />
+          ) : (
+            indexLabel
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="min-w-0 truncate text-[15px] font-medium text-ink">
+              {stage.name}
+            </h3>
+            <Badge tone={label.tone} dot>
+              {label.label}
+            </Badge>
+          </div>
+          <div className="mt-1 text-[13px] text-ink-3">
+            {stage.responsible_detail
+              ? userDisplayName(stage.responsible_detail)
+              : "Ответственный не назначен"}
+            {stage.due_date ? ` · до ${formatDate(stage.due_date)}` : ""}
+          </div>
+          {nestedCount > 0 && (
+            <div className="mt-2 text-[12px] text-ink-4">
+              {nestedCount}{" "}
+              {plural(nestedCount, "подэтап", "подэтапа", "подэтапов")}
+            </div>
+          )}
+        </div>
+      </div>
+      {canEdit && (
+        <div className="mt-3 flex flex-wrap items-center gap-2 pl-11">
+          <button
+            type="button"
+            onClick={() => onAddSubStage(stage)}
+            className="h-8 w-8 grid place-items-center rounded-md border border-hairline-strong text-ink-3 hover:text-accent hover:border-accent/40 hover:bg-accent-soft transition-colors"
+            title="Добавить подэтап"
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </button>
+          <select
+            value={stage.status}
+            onChange={(e) =>
+              onUpdateStatus(stage.id, e.target.value as DealStageStatus)
+            }
+            className="h-8 min-w-[132px] bg-canvas border border-hairline-strong rounded-md px-2 text-[13px] text-ink-2 hover:border-ink-5 transition-colors cursor-pointer"
+          >
+            {STAGE_STATUS_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={() => onRemove(stage.id)}
+            disabled={removePending}
+            className="h-8 w-8 grid place-items-center rounded-md text-ink-3 hover:text-danger hover:bg-tag-red-bg/30 transition-colors disabled:opacity-50"
+            title="Удалить этап"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AddStageDialog({
   open,
   onOpenChange,
   employeesQEnabled,
+  parentStage,
   nextOrder,
   onSubmit,
   pending,
@@ -790,6 +961,7 @@ function AddStageDialog({
   open: boolean;
   onOpenChange: (v: boolean) => void;
   employeesQEnabled: boolean;
+  parentStage: DealStage | null;
   nextOrder: number;
   onSubmit: (values: DealStageCreate) => void;
   pending: boolean;
@@ -821,15 +993,20 @@ function AddStageDialog({
     >
       <DialogContent className="max-w-[480px]">
         <DialogHeader
-          eyebrow="Проект · Этап"
-          title="Добавить этап"
-          description="Этап появится в timeline проекта и будет участвовать в общем прогрессе."
+          eyebrow={parentStage ? "Проект · Подэтап" : "Проект · Этап"}
+          title={parentStage ? "Добавить подэтап" : "Добавить этап"}
+          description={
+            parentStage
+              ? "Подэтап появится веткой внутри выбранного этапа и будет участвовать в общем прогрессе."
+              : "Этап появится в карте проекта и будет участвовать в общем прогрессе."
+          }
         />
         <form
           onSubmit={(e) => {
             e.preventDefault();
             onSubmit({
               name,
+              parent_stage: parentStage?.id ?? null,
               status,
               order: nextOrder,
               responsible: responsible === "" ? null : responsible,
@@ -839,11 +1016,21 @@ function AddStageDialog({
           }}
           className="flex flex-col gap-4"
         >
-          <Field label="Название этапа">
+          {parentStage && (
+            <div className="rounded-md border border-hairline bg-surface-2 px-3 py-2">
+              <div className="text-[11px] uppercase tracking-[0.04em] text-ink-4">
+                Родительский этап
+              </div>
+              <div className="mt-1 truncate text-[13px] font-medium text-ink">
+                {parentStage.name}
+              </div>
+            </div>
+          )}
+          <Field label={parentStage ? "Название подэтапа" : "Название этапа"}>
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Разработка"
+              placeholder={parentStage ? "Проверка договора" : "Разработка"}
               autoFocus
               required
             />

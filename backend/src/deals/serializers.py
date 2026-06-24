@@ -76,6 +76,7 @@ class DealStageSerializer(serializers.ModelSerializer):
         fields = (
             'id',
             'deal',
+            'parent_stage',
             'name',
             'status',
             'order',
@@ -85,6 +86,28 @@ class DealStageSerializer(serializers.ModelSerializer):
             'completed_at',
         )
         read_only_fields = ('id', 'deal', 'responsible_detail')
+
+    def validate_parent_stage(self, parent_stage):
+        if parent_stage is None:
+            return parent_stage
+
+        if self.instance and parent_stage.pk == self.instance.pk:
+            raise serializers.ValidationError("Stage cannot be its own parent.")
+
+        deal = self.context.get("deal")
+        deal_id = getattr(deal, "id", None) or getattr(self.instance, "deal_id", None)
+        if deal_id and parent_stage.deal_id != deal_id:
+            raise serializers.ValidationError(
+                "Parent stage must belong to the same project."
+            )
+
+        ancestor = parent_stage
+        while ancestor is not None:
+            if self.instance and ancestor.pk == self.instance.pk:
+                raise serializers.ValidationError("Stage cannot be nested under itself.")
+            ancestor = ancestor.parent_stage
+
+        return parent_stage
 
 
 class DealLinkSerializer(serializers.ModelSerializer):

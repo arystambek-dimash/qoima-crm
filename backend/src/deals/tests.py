@@ -245,6 +245,55 @@ class ProjectFeatureTests(TestCase):
         self.assertEqual(response.data["links"][0]["title"], "Figma")
         self.assertEqual(response.data["files"][0]["file_name"], "brief.txt")
 
+    def test_project_stage_can_have_sub_stages(self):
+        deal = self.create_project()
+        parent = DealStage.objects.create(
+            deal=deal,
+            name="Согласование КП",
+            status=DealStage.Status.IN_PROGRESS,
+            order=1,
+        )
+
+        response = self.client.post(
+            f"/api/projects/{deal.id}/stages/",
+            {
+                "parent_stage": parent.id,
+                "name": "Подготовить договор",
+                "status": DealStage.Status.PENDING,
+                "order": 1,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data["parent_stage"], parent.id)
+        child = DealStage.objects.get(pk=response.data["id"])
+        self.assertEqual(child.parent_stage, parent)
+
+    def test_project_stage_parent_must_belong_to_same_project(self):
+        deal = self.create_project()
+        other_deal = self.create_project()
+        parent = DealStage.objects.create(
+            deal=other_deal,
+            name="Другой проект",
+            status=DealStage.Status.PENDING,
+            order=1,
+        )
+
+        response = self.client.post(
+            f"/api/projects/{deal.id}/stages/",
+            {
+                "parent_stage": parent.id,
+                "name": "Неверный подэтап",
+                "status": DealStage.Status.PENDING,
+                "order": 1,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("parent_stage", response.data)
+
     def test_project_stage_status_can_be_patched(self):
         deal = self.create_project()
         stage = DealStage.objects.create(
