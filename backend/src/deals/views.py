@@ -1,6 +1,7 @@
 from core.permissions import DealPermissions, IsCollaborator, is_scoped_collaborator
 from core.views import BasePermissionMixin, BaseSerializerMixin
 from decimal import Decimal
+from django.db import transaction
 from django.db.models import DecimalField, F, Q, Sum
 from django.db.models.functions import Coalesce
 from django_filters import rest_framework as django_filters
@@ -10,6 +11,7 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from src.deals.models import Deal
+from src.deals.services import ensure_task_for_sub_stage
 from src.deals.serializers import (
     DealFileSerializer,
     DealLinkSerializer,
@@ -92,6 +94,7 @@ class DealViewSet(
                 "collaborators",
                 "responsibles",
                 "stages",
+                "stages__task",
                 "stages__responsible",
                 "links",
                 "files",
@@ -145,7 +148,11 @@ class DealViewSet(
             context={"request": request, "view": self, "deal": deal},
         )
         serializer.is_valid(raise_exception=True)
-        serializer.save(deal=deal)
+
+        with transaction.atomic():
+            stage = serializer.save(deal=deal)
+            ensure_task_for_sub_stage(stage, actor=request.user)
+
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=["patch"], url_path=r"stages/(?P<stage_id>[^/.]+)")
@@ -163,7 +170,11 @@ class DealViewSet(
             context={"request": request, "view": self, "deal": deal},
         )
         serializer.is_valid(raise_exception=True)
-        serializer.save(deal=deal)
+
+        with transaction.atomic():
+            stage = serializer.save(deal=deal)
+            ensure_task_for_sub_stage(stage, actor=request.user)
+
         return Response(serializer.data)
 
     @update_stage.mapping.delete

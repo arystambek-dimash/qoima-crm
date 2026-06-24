@@ -42,6 +42,13 @@ class Task(models.Model):
         SYSTEM = "system", "System"
 
     category = models.ForeignKey(TaskCategory, on_delete=models.CASCADE)
+    deal_stage = models.OneToOneField(
+        "deals.DealStage",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="task",
+    )
     name = models.CharField(max_length=100)
     type = models.CharField(max_length=100)
     status = models.CharField(

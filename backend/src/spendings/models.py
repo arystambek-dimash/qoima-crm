@@ -11,6 +11,8 @@ class Spending(models.Model):
     date_spend = models.DateField(default=timezone.localdate, db_index=True)
     note = models.TextField(blank=True, null=True)
 
+    class Meta:
+        ordering = ['-date_spend', ]
 
 class MonthlyObligation(models.Model):
     name = models.CharField(max_length=120)

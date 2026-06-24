@@ -4,7 +4,7 @@ services:
     container_name: qoima-postgres
     restart: unless-stopped
     ports:
-      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
     environment:

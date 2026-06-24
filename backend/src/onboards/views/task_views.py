@@ -39,6 +39,7 @@ class TaskViewSet(
             "approval_requested_by",
             "reviewed_by",
             "cancelled_by",
+            "deal_stage",
         ).prefetch_related(
             "audit_logs",
             "attachments",

@@ -10,6 +10,7 @@ from rest_framework.test import APIClient
 from core.enums import UserRole
 from src.deals.models import Deal, DealFile, DealLink, DealPayment, DealStage
 from src.employees.models import Employee
+from src.onboards.models import Task, TaskPerformance
 
 
 class CollaboratorDealAccessTests(TestCase):
@@ -261,6 +262,8 @@ class ProjectFeatureTests(TestCase):
                 "name": "Подготовить договор",
                 "status": DealStage.Status.PENDING,
                 "order": 1,
+                "responsible": self.responsible.id,
+                "due_date": "2026-08-01",
             },
             format="json",
         )
@@ -269,6 +272,21 @@ class ProjectFeatureTests(TestCase):
         self.assertEqual(response.data["parent_stage"], parent.id)
         child = DealStage.objects.get(pk=response.data["id"])
         self.assertEqual(child.parent_stage, parent)
+        task = Task.objects.get(deal_stage=child)
+        self.assertEqual(response.data["task"], task.id)
+        self.assertEqual(task.name, "Подготовить договор")
+        self.assertEqual(task.type, "project_sub_stage")
+        self.assertEqual(task.status, Task.Status.TODO)
+        self.assertEqual(str(task.date_start), "2026-06-01")
+        self.assertEqual(str(task.date_end), "2026-08-01")
+        self.assertEqual(task.category.name, "Project sub-stages")
+        self.assertEqual(task.category.onboard.deal, deal)
+        self.assertTrue(
+            TaskPerformance.objects.filter(
+                task=task,
+                user=self.responsible,
+            ).exists()
+        )
 
     def test_project_stage_parent_must_belong_to_same_project(self):
         deal = self.create_project()

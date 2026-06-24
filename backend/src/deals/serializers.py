@@ -70,6 +70,7 @@ class DealPaymentSerializer(serializers.ModelSerializer):
 
 class DealStageSerializer(serializers.ModelSerializer):
     responsible_detail = UserSerializer(source="responsible", read_only=True)
+    task = serializers.SerializerMethodField()
 
     class Meta:
         model = DealStage
@@ -84,8 +85,15 @@ class DealStageSerializer(serializers.ModelSerializer):
             'responsible_detail',
             'due_date',
             'completed_at',
+            'task',
         )
-        read_only_fields = ('id', 'deal', 'responsible_detail')
+        read_only_fields = ('id', 'deal', 'responsible_detail', 'task')
+
+    def get_task(self, obj):
+        try:
+            return obj.task.id
+        except DealStage.task.RelatedObjectDoesNotExist:
+            return None
 
     def validate_parent_stage(self, parent_stage):
         if parent_stage is None:

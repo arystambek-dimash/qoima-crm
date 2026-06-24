@@ -115,6 +115,7 @@ class TaskSerializer(serializers.ModelSerializer):
             'date_start',
             'date_end',
             'category',
+            'deal_stage',
             'performance',
             'created_by',
             'created_by_detail',
@@ -138,6 +139,7 @@ class TaskSerializer(serializers.ModelSerializer):
             'attachments',
         )
         read_only_fields = (
+            'deal_stage',
             'created_by',
             'created_by_detail',
             'created_via',
