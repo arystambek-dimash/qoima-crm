@@ -11,6 +11,7 @@ env:
   DEPLOY_HOST: ${{ secrets.DEPLOY_HOST || '185.22.67.18' }}
   DEPLOY_USER: ${{ secrets.DEPLOY_USER || 'ubuntu' }}
   DEPLOY_PORT: ${{ vars.DEPLOY_PORT || '22' }}
+  SSH_OPTS: -o StrictHostKeyChecking=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=20 -o TCPKeepAlive=yes
 
 concurrency:
   group: deploy-${{ github.ref }}
@@ -40,7 +41,7 @@ jobs:
 
       - name: Create deploy directory
         run: |
-          ssh -i ~/.ssh/deploy_key -p "$DEPLOY_PORT" \
+          ssh -i ~/.ssh/deploy_key -p "$DEPLOY_PORT" $SSH_OPTS \
             "$DEPLOY_USER@$DEPLOY_HOST" \
             "mkdir -p '${DEPLOY_PATH}'"
 
@@ -55,7 +56,7 @@ jobs:
             --exclude 'frontend/.next' \
             --exclude 'frontend/node_modules' \
             --exclude '**/__pycache__' \
-            -e "ssh -i ~/.ssh/deploy_key -p ${DEPLOY_PORT} -o StrictHostKeyChecking=yes" \
+            -e "ssh -i ~/.ssh/deploy_key -p ${DEPLOY_PORT} ${SSH_OPTS}" \
             ./ "$DEPLOY_USER@$DEPLOY_HOST:${DEPLOY_PATH}/"
 
       - name: Write production env file
@@ -63,7 +64,7 @@ jobs:
           PRODUCTION_ENV_FILE: ${{ secrets.PRODUCTION_ENV_FILE }}
         run: |
           if [ -n "$PRODUCTION_ENV_FILE" ]; then
-            printf '%s' "$PRODUCTION_ENV_FILE" | ssh -i ~/.ssh/deploy_key -p "$DEPLOY_PORT" \
+            printf '%s' "$PRODUCTION_ENV_FILE" | ssh -i ~/.ssh/deploy_key -p "$DEPLOY_PORT" $SSH_OPTS \
               "$DEPLOY_USER@$DEPLOY_HOST" \
               "cat > '${DEPLOY_PATH}/.env'"
           else
@@ -72,7 +73,7 @@ jobs:
 
       - name: Initialize HTTPS certificate
         run: |
-          ssh -i ~/.ssh/deploy_key -p "$DEPLOY_PORT" \
+          ssh -i ~/.ssh/deploy_key -p "$DEPLOY_PORT" $SSH_OPTS \
             "$DEPLOY_USER@$DEPLOY_HOST" \
             "cd '${DEPLOY_PATH}' && \
              test -f .env && \
@@ -81,7 +82,7 @@ jobs:
 
       - name: Deploy with Docker Compose
         run: |
-          ssh -i ~/.ssh/deploy_key -p "$DEPLOY_PORT" \
+          ssh -i ~/.ssh/deploy_key -p "$DEPLOY_PORT" $SSH_OPTS \
             "$DEPLOY_USER@$DEPLOY_HOST" \
             "cd '${DEPLOY_PATH}' && \
              test -f .env && \
