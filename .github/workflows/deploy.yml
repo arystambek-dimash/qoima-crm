@@ -37,7 +37,15 @@ jobs:
           mkdir -p ~/.ssh
           printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -p "$DEPLOY_PORT" -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+          for attempt in 1 2 3 4 5; do
+            if ssh-keyscan -T 30 -p "$DEPLOY_PORT" -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts; then
+              exit 0
+            fi
+            echo "ssh-keyscan failed on attempt ${attempt}; retrying..." >&2
+            sleep 5
+          done
+          echo "Unable to read SSH host key from ${DEPLOY_HOST}:${DEPLOY_PORT}" >&2
+          exit 1
 
       - name: Create deploy directory
         run: |
