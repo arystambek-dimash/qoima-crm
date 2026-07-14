@@ -188,6 +188,7 @@ class DealSerializer(serializers.ModelSerializer):
             'deal_amount',
             'payment_type',
             'is_active',
+            'is_archived',
             'payment_completed',
             'collaborators',
             'collaborator_details',

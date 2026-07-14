@@ -33,6 +33,7 @@ import {
 } from "@/lib/task-helpers";
 import { typeMetaForIncome } from "@/lib/income-type-meta";
 import { typeMetaForSpending } from "@/lib/spending-type-meta";
+import { MyTaskDialog } from "@/components/my-task-dialog";
 import {
   ArrowUpRight,
   Activity,
@@ -529,9 +530,10 @@ function EmployeeDashboard({
     enabled: canSeeAccounting && currentViewMode === "analytics",
   });
 
+  // High limit → the panel lists ALL assigned open tasks (backend caps at 200).
   const myTasksQ = useQuery({
     queryKey: ["dashboard-my-tasks"],
-    queryFn: () => dashboard.myTasks(12),
+    queryFn: () => dashboard.myTasks(200),
   });
 
   const data = analyticsQ.data;
@@ -1005,6 +1007,10 @@ function MyTasksPanel({ analytics }: { analytics: DashboardMyTasksAnalytics }) {
   const s = analytics.summary;
   const urgent = s.overdue + s.due_today + s.due_next_3_days;
   const hasTasks = analytics.tasks.length > 0;
+  const [selectedTask, setSelectedTask] = useState<DashboardMyTaskItem | null>(
+    null
+  );
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   return (
     <section className="mb-8 space-y-4 stagger">
@@ -1051,9 +1057,16 @@ function MyTasksPanel({ analytics }: { analytics: DashboardMyTasksAnalytics }) {
           </PanelHeader>
           <PanelBody>
             {hasTasks ? (
-              <ul className="divide-y divide-hairline">
+              <ul className="divide-y divide-hairline max-h-[560px] overflow-y-auto scrollbar-thin">
                 {analytics.tasks.map((task) => (
-                  <TaskQueueRow key={task.id} task={task} />
+                  <TaskQueueRow
+                    key={task.id}
+                    task={task}
+                    onOpen={() => {
+                      setSelectedTask(task);
+                      setDialogOpen(true);
+                    }}
+                  />
                 ))}
               </ul>
             ) : (
@@ -1138,50 +1151,67 @@ function MyTasksPanel({ analytics }: { analytics: DashboardMyTasksAnalytics }) {
           </PanelBody>
         </Panel>
       </section>
+
+      <MyTaskDialog
+        task={selectedTask}
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+      />
     </section>
   );
 }
 
-function TaskQueueRow({ task }: { task: DashboardMyTaskItem }) {
+function TaskQueueRow({
+  task,
+  onOpen,
+}: {
+  task: DashboardMyTaskItem;
+  onOpen: () => void;
+}) {
   const meta = TASK_URGENCY_META[task.urgency];
   const title = task.deal_name || task.onboard_name || task.category_name || "Без проекта";
-  const body = (
-    <>
-      <div className="flex items-center gap-2 min-w-0">
-        <span className="h-8 w-8 rounded-md bg-surface-2 border border-hairline grid place-items-center shrink-0 text-ink-3">
-          <Activity className="h-3.5 w-3.5" />
-        </span>
-        <div className="min-w-0">
-          <p className="text-[13px] font-medium text-ink truncate">
-            {task.name}
-          </p>
-          <p className="text-[12px] text-ink-3 truncate">
-            {title} · {task.type || "задача"}
-          </p>
-        </div>
-      </div>
-      <div className="flex items-center gap-2 shrink-0">
-        <Badge tone={meta.tone} dot>
-          {meta.label}
-        </Badge>
-        <span className="hidden sm:inline text-[12px] text-ink-3 tabular-nums min-w-[92px] text-right">
-          {taskDueLabel(task.days_left)}
-        </span>
-      </div>
-    </>
-  );
+  const subtitle = task.parent_stage_name
+    ? `${title} · ${task.parent_stage_name}`
+    : `${title} · ${task.type || "задача"}`;
 
-  return task.deal ? (
-    <Link
-      href={`/projects/${task.deal}` as never}
-      className="flex items-center justify-between gap-3 py-3 hover:bg-surface-2/70 transition-colors px-2 -mx-2 rounded-md"
-    >
-      {body}
-    </Link>
-  ) : (
-    <div className="flex items-center justify-between gap-3 py-3 px-2 -mx-2">
-      {body}
-    </div>
+  return (
+    <li className="group flex items-center justify-between gap-3 py-3 hover:bg-surface-2/70 transition-colors px-2 -mx-2 rounded-md">
+      <button
+        type="button"
+        onClick={onOpen}
+        className="flex flex-1 items-center justify-between gap-3 min-w-0 text-left cursor-pointer"
+      >
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="h-8 w-8 rounded-md bg-surface-2 border border-hairline grid place-items-center shrink-0 text-ink-3">
+            <Activity className="h-3.5 w-3.5" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-[13px] font-medium text-ink truncate">
+              {task.name}
+            </p>
+            <p className="text-[12px] text-ink-3 truncate">{subtitle}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <Badge tone={meta.tone} dot>
+            {meta.label}
+          </Badge>
+          <span className="hidden sm:inline text-[12px] text-ink-3 tabular-nums min-w-[92px] text-right">
+            {taskDueLabel(task.days_left)}
+          </span>
+        </div>
+      </button>
+      {task.deal && (
+        <Link
+          href={`/projects/${task.deal}` as never}
+          onClick={(e) => e.stopPropagation()}
+          className="h-7 w-7 grid place-items-center rounded-md border border-transparent text-ink-4 hover:text-accent hover:border-accent/40 hover:bg-accent-soft transition-colors shrink-0"
+          title="Открыть проект"
+        >
+          <ArrowUpRight className="h-3.5 w-3.5" />
+        </Link>
+      )}
+    </li>
   );
 }
 

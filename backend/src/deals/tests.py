@@ -372,6 +372,30 @@ class ProjectFeatureTests(TestCase):
         self.assertEqual(response.data["remaining"], "2100000.00")
         self.assertEqual(response.data["payments"][0]["amount"], "700000.00")
 
+    def test_project_can_be_archived_and_unarchived(self):
+        deal = self.create_project()
+
+        response = self.client.patch(
+            f"/api/projects/{deal.id}/",
+            {"is_archived": True},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data["is_archived"])
+        deal.refresh_from_db()
+        self.assertTrue(deal.is_archived)
+
+        response = self.client.patch(
+            f"/api/projects/{deal.id}/",
+            {"is_archived": False},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        deal.refresh_from_db()
+        self.assertFalse(deal.is_archived)
+
     def create_project(self):
         deal = Deal.objects.create(
             name="CRM для «Алтын Маркет»",
@@ -385,3 +409,108 @@ class ProjectFeatureTests(TestCase):
         deal.collaborators.add(self.client_user)
         deal.responsibles.add(self.responsible)
         return deal
+
+
+class StageStatusPermissionTests(TestCase):
+    """An assignee may change ONLY the status of their own stage without the
+    deals_can_update flag (used by the dashboard my-tasks modal)."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.responsible = get_user_model().objects.create_user(
+            username="assignee",
+            email="assignee@example.com",
+            password="password",
+            role=UserRole.EMPLOYEE,
+        )
+        self.outsider = get_user_model().objects.create_user(
+            username="outsider",
+            email="outsider@example.com",
+            password="password",
+            role=UserRole.EMPLOYEE,
+        )
+        self.deal = Deal.objects.create(
+            name="Проект",
+            stage="active",
+            date_start="2026-06-01",
+            date_end="2026-08-20",
+            deal_amount="100000.00",
+            payment_type="card",
+        )
+        self.stage = DealStage.objects.create(
+            deal=self.deal,
+            name="Разработка",
+            status=DealStage.Status.PENDING,
+            order=1,
+            responsible=self.responsible,
+        )
+
+    def stage_url(self):
+        return f"/api/projects/{self.deal.id}/stages/{self.stage.id}/"
+
+    def test_stage_responsible_can_change_status_without_flag(self):
+        self.client.force_authenticate(self.responsible)
+
+        response = self.client.patch(
+            self.stage_url(),
+            {"status": DealStage.Status.COMPLETED},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.stage.refresh_from_db()
+        self.assertEqual(self.stage.status, DealStage.Status.COMPLETED)
+
+    def test_task_assignee_can_change_status_without_flag(self):
+        parent = DealStage.objects.create(
+            deal=self.deal,
+            name="Родитель",
+            status=DealStage.Status.PENDING,
+            order=2,
+        )
+        sub_stage = DealStage.objects.create(
+            deal=self.deal,
+            parent_stage=parent,
+            name="Подэтап",
+            status=DealStage.Status.PENDING,
+            order=1,
+        )
+        from src.deals.services import ensure_task_for_sub_stage
+
+        task = ensure_task_for_sub_stage(sub_stage)
+        TaskPerformance.objects.create(task=task, user=self.outsider)
+        self.client.force_authenticate(self.outsider)
+
+        response = self.client.patch(
+            f"/api/projects/{self.deal.id}/stages/{sub_stage.id}/",
+            {"status": DealStage.Status.IN_PROGRESS},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        sub_stage.refresh_from_db()
+        task.refresh_from_db()
+        self.assertEqual(sub_stage.status, DealStage.Status.IN_PROGRESS)
+        self.assertEqual(task.status, Task.Status.IN_PROGRESS)
+
+    def test_stage_responsible_cannot_change_other_fields_without_flag(self):
+        self.client.force_authenticate(self.responsible)
+
+        response = self.client.patch(
+            self.stage_url(),
+            {"status": DealStage.Status.COMPLETED, "name": "Другое имя"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_unrelated_employee_cannot_change_status_without_flag(self):
+        self.client.force_authenticate(self.outsider)
+
+        response = self.client.patch(
+            self.stage_url(),
+            {"status": DealStage.Status.COMPLETED},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 403)

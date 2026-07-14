@@ -52,6 +52,13 @@ import {
   userDisplay,
 } from "@/lib/deal-labels";
 import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown";
+import {
   Search,
   ChevronRight,
   Briefcase,
@@ -62,7 +69,11 @@ import {
   ArrowUp,
   ArrowDown,
   AlertTriangle,
+  Archive,
+  ArchiveRestore,
+  MoreHorizontal,
   RotateCcw,
+  Trash2,
 } from "lucide-react";
 import type { Deal } from "@/lib/types";
 
@@ -85,7 +96,7 @@ function formatDealAmount(
   return canViewDealAmount(deal) ? formatCurrency(value) : MASKED_AMOUNT;
 }
 
-type StatusFilter = "all" | "active" | "completed" | "cancelled";
+type StatusFilter = "all" | "active" | "completed" | "cancelled" | "archived";
 type View = "table" | "board";
 type SortKey = "client" | "stage" | "amount" | "paid" | "deadline";
 type SortDir = "asc" | "desc";
@@ -96,6 +107,7 @@ export default function DealsPage() {
   const isSuper = useIsSuperuser();
   const canCreate = useHasPermission("deals_can_create");
   const canUpdate = useHasPermission("deals_can_update");
+  const canDelete = useHasPermission("deals_can_delete");
   const now = useNow();
 
   const canCreateDeal =
@@ -103,6 +115,8 @@ export default function DealsPage() {
   const canMoveStage = isSuper || canUpdate.granted;
 
   const scopedToMine = role === "collaborator" && !isSuper;
+  const canArchiveDeal = !scopedToMine && (isSuper || canUpdate.granted);
+  const canRemoveDeal = !scopedToMine && (isSuper || canDelete.granted);
   const dealsQ = useQuery({
     queryKey: scopedToMine ? ["deals", "mine", user?.id] : ["deals"],
     queryFn: () =>
@@ -116,21 +130,52 @@ export default function DealsPage() {
   const [sortKey, setSortKey] = useState<SortKey>("deadline");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
 
-  const allDeals = useMemo(() => dealsQ.data ?? [], [dealsQ.data]);
+  const qc = useQueryClient();
+  const archiveDeal = useMutation({
+    mutationFn: ({ id, archived }: { id: number; archived: boolean }) =>
+      deals.update(id, { is_archived: archived }),
+    onSuccess: (_d, { archived }) => {
+      qc.invalidateQueries({ queryKey: ["deals"] });
+      toast.success(
+        archived ? "Проект перемещён в архив." : "Проект возвращён из архива."
+      );
+    },
+    onError: (err) => toast.error(asApiError(err).message),
+  });
+  const removeDeal = useMutation({
+    mutationFn: (id: number) => deals.remove(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["deals"] });
+      toast.success("Проект удалён.");
+    },
+    onError: (err) => toast.error(asApiError(err).message),
+  });
 
-  const counts = useMemo(
-    () => ({
-      all: allDeals.length,
-      active: allDeals.filter((d) => d.stage === "active").length,
-      completed: allDeals.filter((d) => d.stage === "completed").length,
-      cancelled: allDeals.filter((d) => d.stage === "cancelled").length,
-    }),
+  const allDeals = useMemo(() => dealsQ.data ?? [], [dealsQ.data]);
+  const liveDeals = useMemo(
+    () => allDeals.filter((d) => !d.is_archived),
     [allDeals]
   );
 
+  const counts = useMemo(
+    () => ({
+      all: liveDeals.length,
+      active: liveDeals.filter((d) => d.stage === "active").length,
+      completed: liveDeals.filter((d) => d.stage === "completed").length,
+      cancelled: liveDeals.filter((d) => d.stage === "cancelled").length,
+      archived: allDeals.length - liveDeals.length,
+    }),
+    [allDeals, liveDeals]
+  );
+
   const filtered = useMemo(() => {
-    let list = allDeals;
-    if (status !== "all") list = list.filter((d) => d.stage === status);
+    let list =
+      status === "archived"
+        ? allDeals.filter((d) => d.is_archived)
+        : liveDeals;
+    if (status !== "all" && status !== "archived") {
+      list = list.filter((d) => d.stage === status);
+    }
     const term = q.trim().toLowerCase();
     if (term) {
       list = list.filter((d) => {
@@ -146,7 +191,7 @@ export default function DealsPage() {
       });
     }
     return list;
-  }, [allDeals, q, status]);
+  }, [allDeals, liveDeals, q, status]);
 
   const sorted = useMemo(
     () => sortDeals(filtered, sortKey, sortDir),
@@ -252,6 +297,14 @@ export default function DealsPage() {
                   count={counts.cancelled}
                 />
               )}
+              {!isCollaborator && (canArchiveDeal || counts.archived > 0) && (
+                <StatusChip
+                  active={status === "archived"}
+                  onClick={() => setStatus("archived")}
+                  label="Архив"
+                  count={counts.archived}
+                />
+              )}
             </div>
             <div className="flex bg-surface-2 border border-hairline rounded-md p-0.5 shrink-0">
               <ViewChip
@@ -337,6 +390,23 @@ export default function DealsPage() {
                     d={d}
                     now={now}
                     hasClientData={hasClientData}
+                    canArchive={canArchiveDeal}
+                    canRemove={canRemoveDeal}
+                    onToggleArchive={() =>
+                      archiveDeal.mutate({
+                        id: d.id,
+                        archived: !d.is_archived,
+                      })
+                    }
+                    onRemove={() => {
+                      if (
+                        confirm(
+                          `Удалить проект «${projectName(d)}»? Все его этапы, задачи, файлы и платежи будут удалены безвозвратно.`
+                        )
+                      ) {
+                        removeDeal.mutate(d.id);
+                      }
+                    }}
                   />
                 ))}
               </tbody>
@@ -530,10 +600,18 @@ function DealRow({
   d,
   now,
   hasClientData,
+  canArchive,
+  canRemove,
+  onToggleArchive,
+  onRemove,
 }: {
   d: Deal;
   now: number;
   hasClientData: boolean;
+  canArchive: boolean;
+  canRemove: boolean;
+  onToggleArchive: () => void;
+  onRemove: () => void;
 }) {
   const router = useRouter();
   const title = projectName(d);
@@ -541,6 +619,7 @@ function DealRow({
   const email = dealClientEmail(d);
   const overdue = now > 0 && isDealOverdue(d, now);
   const projectProgress = computeProjectProgress(d);
+  const hasActions = canArchive || canRemove;
 
   return (
     <TR
@@ -552,6 +631,7 @@ function DealRow({
           <div className="flex items-center gap-2 min-w-0">
             <span className="text-ink font-medium truncate">{title}</span>
             <StatusBadge stage={d.stage} />
+            {d.is_archived && <Badge tone="gray">в архиве</Badge>}
           </div>
           {hasClientData && (name || email) ? (
             <span className="text-[12px] text-ink-3 truncate">
@@ -597,8 +677,49 @@ function DealRow({
           {formatDate(d.date_end)}
         </span>
       </TD>
-      <TD>
-        <ChevronRight className="h-4 w-4 text-ink-4 mx-auto" />
+      <TD onClick={(e) => e.stopPropagation()}>
+        {hasActions ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="h-7 w-7 grid place-items-center rounded-md text-ink-4 hover:text-ink hover:bg-surface-2 transition-colors mx-auto"
+                title="Действия"
+              >
+                <MoreHorizontal className="h-4 w-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              {canArchive && (
+                <DropdownMenuItem onSelect={onToggleArchive}>
+                  {d.is_archived ? (
+                    <>
+                      <ArchiveRestore className="h-3.5 w-3.5 text-ink-3" />
+                      Вернуть из архива
+                    </>
+                  ) : (
+                    <>
+                      <Archive className="h-3.5 w-3.5 text-ink-3" />
+                      Архивировать
+                    </>
+                  )}
+                </DropdownMenuItem>
+              )}
+              {canArchive && canRemove && <DropdownMenuSeparator />}
+              {canRemove && (
+                <DropdownMenuItem
+                  onSelect={onRemove}
+                  className="text-danger data-[highlighted]:bg-tag-red-bg/40 data-[highlighted]:text-danger"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Удалить проект
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : (
+          <ChevronRight className="h-4 w-4 text-ink-4 mx-auto" />
+        )}
       </TD>
     </TR>
   );
@@ -633,6 +754,7 @@ function labelFor(s: StatusFilter): string {
     active: "В процессе",
     completed: "Выполнено",
     cancelled: "Отменено",
+    archived: "Архив",
   };
   return map[s];
 }

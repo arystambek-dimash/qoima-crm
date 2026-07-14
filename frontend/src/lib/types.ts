@@ -71,6 +71,8 @@ export interface Deal {
   deal_amount: string | null;
   payment_type: DealPaymentType;
   is_active: boolean;
+  /** Optional until backend migration lands everywhere. */
+  is_archived?: boolean;
   payment_completed: boolean;
 
   /**
@@ -111,6 +113,7 @@ export interface DealCreate {
   user?: number;
   collaborators?: number[];
   responsibles?: number[];
+  is_archived?: boolean;
 }
 
 export interface DealStage {
@@ -673,6 +676,11 @@ export interface DashboardMyTaskItem {
   onboard_name: string;
   deal: number | null;
   deal_name: string;
+  /** Present when the task was auto-created from a project sub-stage. */
+  deal_stage?: number | null;
+  deal_stage_status?: DealStageStatus | "";
+  deal_stage_name?: string;
+  parent_stage_name?: string;
   approval_status: TaskApprovalStatus;
   approval_action: TaskApprovalAction;
 }

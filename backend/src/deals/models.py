@@ -40,6 +40,7 @@ class Deal(models.Model):
         max_length=4
     )
     is_active = models.BooleanField(default=True)
+    is_archived = models.BooleanField(default=False)
     payment_completed = models.BooleanField(default=False)
 
     def has_collaborator(self, user):

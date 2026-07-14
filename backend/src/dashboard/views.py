@@ -25,7 +25,7 @@ class DashboardViewSet(viewsets.GenericViewSet):
     PERIODS = {"week", "month", "year", "all", "custom"}
     GROUPS = {"day", "week", "month", "year"}
     TASK_LIMIT_DEFAULT = 12
-    TASK_LIMIT_MAX = 50
+    TASK_LIMIT_MAX = 200
     TASK_WORKLOAD_CAPACITY_POINTS = 12
     TRUNC_BY_GROUP = {
         "day": TruncDate,
@@ -313,6 +313,9 @@ class DashboardViewSet(viewsets.GenericViewSet):
                 "category",
                 "category__onboard",
                 "category__onboard__deal",
+                "deal_stage",
+                "deal_stage__deal",
+                "deal_stage__parent_stage",
             )
             .distinct()
         )
@@ -417,7 +420,12 @@ class DashboardViewSet(viewsets.GenericViewSet):
 
     def _my_task_row(self, task, today):
         onboard = task.category.onboard if task.category_id else None
+        stage = task.deal_stage if task.deal_stage_id else None
         deal = onboard.deal if onboard and onboard.deal_id else None
+
+        if deal is None and stage is not None:
+            deal = stage.deal
+
         days_left = (task.date_end - today).days
 
         return {
@@ -435,6 +443,12 @@ class DashboardViewSet(viewsets.GenericViewSet):
             "onboard_name": onboard.name if onboard else "",
             "deal": deal.id if deal else None,
             "deal_name": deal.name if deal else "",
+            "deal_stage": stage.id if stage else None,
+            "deal_stage_status": stage.status if stage else "",
+            "deal_stage_name": stage.name if stage else "",
+            "parent_stage_name": (
+                stage.parent_stage.name if stage and stage.parent_stage_id else ""
+            ),
             "approval_status": task.approval_status,
             "approval_action": task.approval_action,
         }

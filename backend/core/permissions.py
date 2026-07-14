@@ -108,6 +108,38 @@ class DealPermissions(EmployeeFlagPermission):
         "delete_payment": "deals_can_update",
     }
 
+    def has_permission(self, request, view):
+        if super().has_permission(request, view):
+            return True
+
+        if getattr(view, "action", None) == "update_stage":
+            return self._is_own_stage_status_update(request, view)
+
+        return False
+
+    def _is_own_stage_status_update(self, request, view):
+        """The stage responsible (or assignee of its auto-created task) may
+        change the stage status without the deals_can_update flag."""
+        if set(request.data.keys()) - {"status"}:
+            return False
+
+        from src.deals.models import DealStage
+        from src.onboards.models import TaskPerformance
+
+        stage_id = view.kwargs.get("stage_id")
+        stage = DealStage.objects.filter(id=stage_id).first()
+
+        if stage is None:
+            return False
+
+        if stage.responsible_id == request.user.id:
+            return True
+
+        return TaskPerformance.objects.filter(
+            task__deal_stage=stage,
+            user=request.user,
+        ).exists()
+
 
 class EmployeePermissions(EmployeeFlagPermission):
     permission_map = {
