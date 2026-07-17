@@ -74,7 +74,11 @@ export function SalesLeadDialog({
       <div onClick={openDialog}>{trigger}</div>
       <DialogContent className="max-w-[540px]">
         <DialogHeader
-          eyebrow={initial ? "Продажи · Редактирование" : "Продажи · Новый лид"}
+          eyebrow={
+            initial
+              ? "Отдел продаж · Редактирование"
+              : "Отдел продаж · Новый лид"
+          }
           title={
             <span className="flex items-center gap-2.5">
               <span className="grid h-9 w-9 place-items-center rounded-md bg-tag-blue-bg text-tag-blue-fg">

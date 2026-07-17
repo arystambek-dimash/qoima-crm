@@ -42,7 +42,7 @@ export const NAV: { label: string; items: NavItem[] }[] = [
       { href: "/projects", label: "Проекты", icon: Briefcase },
       {
         href: "/sales",
-        label: "Продажи",
+        label: "Отдел продаж",
         icon: Handshake,
         roles: ["employee"],
         requires: "sales_can_retrieve",

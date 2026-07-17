@@ -40,7 +40,7 @@ const PERMISSION_GROUPS: {
     ],
   },
   {
-    title: "Продажи",
+    title: "Отдел продаж",
     fields: [
       { f: "sales_can_retrieve", label: "Видеть лидов" },
       { f: "sales_can_create", label: "Добавлять лидов" },
