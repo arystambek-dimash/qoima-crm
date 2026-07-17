@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Handshake, Loader2, Plus } from "lucide-react";
+import { Loader2, Plus, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -14,14 +14,18 @@ import {
 import { Field, Input, Textarea } from "@/components/ui/input";
 import { asApiError } from "@/lib/api";
 import { sales } from "@/lib/endpoints";
-import type { SalesLead } from "@/lib/types";
+import type { SalesEventParticipant } from "@/lib/types";
 
-export function SalesLeadDialog({
+export function EventParticipantDialog({
   trigger,
+  eventId,
+  eventName,
   initial,
 }: {
   trigger: React.ReactNode;
-  initial?: SalesLead;
+  eventId: number;
+  eventName: string;
+  initial?: SalesEventParticipant;
 }) {
   const [open, setOpen] = useState(false);
   const [leadName, setLeadName] = useState(initial?.lead_name ?? "");
@@ -41,19 +45,20 @@ export function SalesLeadDialog({
   const mutation = useMutation({
     mutationFn: () => {
       const payload = {
+        event: eventId,
         lead_name: leadName.trim(),
         company: company.trim(),
         amount,
         comments: comments.trim(),
       };
       return initial
-        ? sales.update(initial.id, payload)
-        : sales.create(payload);
+        ? sales.eventParticipants.update(initial.id, payload)
+        : sales.eventParticipants.create(payload);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["sales-leads"] });
+      queryClient.invalidateQueries({ queryKey: ["sales-events"] });
       toast.success(
-        initial ? "Корпоративная сделка обновлена." : "Компания добавлена в продажи."
+        initial ? "Участник обновлён." : "Участник добавлен в событие."
       );
       setOpen(false);
       if (!initial) {
@@ -66,30 +71,23 @@ export function SalesLeadDialog({
     onError: (error) => toast.error(asApiError(error).message),
   });
 
-  const isValid =
-    leadName.trim().length > 0 &&
-    company.trim().length > 0 &&
-    Number(amount) > 0;
+  const isValid = leadName.trim().length > 0 && Number(amount) > 0;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <div onClick={openDialog}>{trigger}</div>
       <DialogContent className="max-w-[540px]">
         <DialogHeader
-          eyebrow={
-            initial
-              ? "Продажи компаниям · Редактирование"
-              : "Продажи компаниям · Новая сделка"
-          }
+          eyebrow={eventName}
           title={
             <span className="flex items-center gap-2.5">
-              <span className="grid h-9 w-9 place-items-center rounded-md bg-tag-blue-bg text-tag-blue-fg">
-                <Handshake className="h-4 w-4" />
+              <span className="grid h-9 w-9 place-items-center rounded-md bg-tag-green-bg text-tag-green-fg">
+                <UserPlus className="h-4 w-4" />
               </span>
-              <span>{initial ? "Изменить сделку" : "Добавить компанию"}</span>
+              <span>{initial ? "Изменить участника" : "Добавить участника"}</span>
             </span>
           }
-          description="Компания оплачивает полную сумму. Укажите основной контакт и общий бюджет сделки."
+          description="Контакт, сумма и комментарий сохранятся внутри выбранного события."
         />
 
         <form
@@ -100,7 +98,7 @@ export function SalesLeadDialog({
           }}
         >
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="Контактное лицо">
+            <Field label="Имя участника">
               <Input
                 value={leadName}
                 onChange={(event) => setLeadName(event.target.value)}
@@ -111,18 +109,17 @@ export function SalesLeadDialog({
               />
             </Field>
 
-            <Field label="Компания">
+            <Field label="Компания / организация" hint="Необязательно">
               <Input
                 value={company}
                 onChange={(event) => setCompany(event.target.value)}
                 placeholder="Например, Alem Logistics"
                 autoComplete="organization"
-                required
               />
             </Field>
           </div>
 
-          <Field label="Полная сумма сделки">
+          <Field label="Сумма">
             <div className="relative">
               <span
                 className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[15px] font-medium text-ink-3"
@@ -147,12 +144,12 @@ export function SalesLeadDialog({
             </div>
           </Field>
 
-          <Field label="Комментарии" hint="Необязательно">
+          <Field label="Комментарий" hint="Необязательно">
             <Textarea
               value={comments}
               onChange={(event) => setComments(event.target.value)}
-              rows={4}
-              placeholder="Потребность лида, источник, договорённости или следующий шаг"
+              rows={3}
+              placeholder="Источник, договорённости, статус оплаты или следующий шаг"
             />
           </Field>
 
@@ -179,7 +176,7 @@ export function SalesLeadDialog({
               ) : (
                 <>
                   {!initial && <Plus className="h-3.5 w-3.5" />}
-                  {initial ? "Сохранить" : "Добавить компанию"}
+                  {initial ? "Сохранить" : "Добавить участника"}
                 </>
               )}
             </Button>

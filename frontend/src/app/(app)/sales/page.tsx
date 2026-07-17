@@ -4,6 +4,9 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Building2,
+  CalendarDays,
+  ChevronRight,
+  CircleUserRound,
   Handshake,
   MessageSquareText,
   Pencil,
@@ -11,6 +14,8 @@ import {
   Search,
   Trash2,
   TrendingUp,
+  UserPlus,
+  UsersRound,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -27,9 +32,17 @@ import {
   useIsSuperuser,
   useRole,
 } from "@/lib/permissions";
-import type { SalesLead } from "@/lib/types";
+import type {
+  SalesEvent,
+  SalesEventParticipant,
+  SalesLead,
+} from "@/lib/types";
 import { cn, formatCurrency, formatDate, plural } from "@/lib/utils";
+import { EventParticipantDialog } from "./event-participant-dialog";
+import { SalesEventDialog } from "./sales-event-dialog";
 import { SalesLeadDialog } from "./sales-lead-dialog";
+
+type SalesMode = "companies" | "events";
 
 export default function SalesPage() {
   const role = useRole();
@@ -43,15 +56,23 @@ export default function SalesPage() {
   const canCreate = isSuperuser || createPermission.granted;
   const canUpdate = isSuperuser || updatePermission.granted;
   const canDelete = isSuperuser || deletePermission.granted;
+  const [mode, setMode] = useState<SalesMode>("companies");
   const [search, setSearch] = useState("");
+  const [selectedEventId, setSelectedEventId] = useState<number | null>(null);
 
   const leadsQuery = useQuery({
     queryKey: ["sales-leads"],
     queryFn: sales.list,
     enabled: allowed,
   });
+  const eventsQuery = useQuery({
+    queryKey: ["sales-events"],
+    queryFn: sales.events.list,
+    enabled: allowed,
+  });
 
   const leads = useMemo(() => leadsQuery.data ?? [], [leadsQuery.data]);
+  const events = useMemo(() => eventsQuery.data ?? [], [eventsQuery.data]);
   const filteredLeads = useMemo(() => {
     const term = search.trim().toLocaleLowerCase("ru");
     if (!term) return leads;
@@ -61,12 +82,47 @@ export default function SalesPage() {
       )
     );
   }, [leads, search]);
+  const filteredEvents = useMemo(() => {
+    const term = search.trim().toLocaleLowerCase("ru");
+    if (!term) return events;
+    return events.filter(
+      (event) =>
+        [event.name, event.comments].some((value) =>
+          value.toLocaleLowerCase("ru").includes(term)
+        ) ||
+        event.participants.some((participant) =>
+          [
+            participant.lead_name,
+            participant.company,
+            participant.comments,
+          ].some((value) => value.toLocaleLowerCase("ru").includes(term))
+        )
+    );
+  }, [events, search]);
 
   const totalAmount = leads.reduce((sum, lead) => sum + Number(lead.amount), 0);
   const averageAmount = leads.length ? totalAmount / leads.length : 0;
   const companiesCount = new Set(
     leads.map((lead) => lead.company.trim().toLocaleLowerCase("ru"))
   ).size;
+
+  const eventParticipants = events.reduce(
+    (sum, event) => sum + event.participant_count,
+    0
+  );
+  const eventCapacity = events.reduce((sum, event) => sum + event.capacity, 0);
+  const eventAmount = events.reduce(
+    (sum, event) => sum + Number(event.total_amount),
+    0
+  );
+
+  const selectedEvent = useMemo(() => {
+    if (!filteredEvents.length) return null;
+    return (
+      filteredEvents.find((event) => event.id === selectedEventId) ??
+      filteredEvents[0]
+    );
+  }, [filteredEvents, selectedEventId]);
 
   if (!isSuperuser && role === "employee" && viewPermission.isLoading) {
     return <Topbar eyebrow="Коммерция" title="Загрузка доступа…" />;
@@ -91,136 +147,700 @@ export default function SalesPage() {
         title="Отдел продаж"
         actions={
           canCreate ? (
-            <SalesLeadDialog
-              trigger={
-                <Button variant="primary" size="sm">
-                  <Plus className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">Добавить лида</span>
-                  <span className="sm:hidden">Лид</span>
-                </Button>
-              }
-            />
+            mode === "companies" ? (
+              <SalesLeadDialog
+                trigger={
+                  <Button variant="primary" size="sm">
+                    <Plus className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">Добавить компанию</span>
+                    <span className="sm:hidden">Компания</span>
+                  </Button>
+                }
+              />
+            ) : (
+              <SalesEventDialog
+                trigger={
+                  <Button variant="primary" size="sm">
+                    <Plus className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">Создать событие</span>
+                    <span className="sm:hidden">Событие</span>
+                  </Button>
+                }
+              />
+            )
           ) : undefined
         }
       />
 
       <main className="flex-1 bg-surface px-3 py-4 sm:px-6 sm:py-6 lg:px-8">
-        <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+        <div className="mb-5 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
           <div>
             <div className="mb-1 flex items-center gap-2 text-[12px] font-medium uppercase tracking-[0.08em] text-tag-blue-fg">
               <span className="h-1.5 w-1.5 rounded-full bg-tag-blue-fg" />
-              Входящие возможности
+              Два формата продаж
             </div>
             <h2 className="font-display text-[24px] text-ink sm:text-[28px]">
-              Потенциальные сделки
+              {mode === "companies"
+                ? "Продажи компаниям"
+                : "Групповые события"}
             </h2>
-            <p className="mt-1 max-w-xl text-[13px] text-ink-3">
-              Единый список контактов, компаний и ожидаемых сумм для отдела продаж.
+            <p className="mt-1 max-w-2xl text-[13px] text-ink-3">
+              {mode === "companies"
+                ? "Компания оплачивает всю сумму сделки — один контакт, одна организация, один бюджет."
+                : "Создавайте событие на дату, задавайте размер группы и записывайте каждого участника отдельно."}
             </p>
           </div>
 
-          <div className="relative w-full sm:w-[280px]">
+          <div className="relative w-full sm:w-[320px]">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-4" />
             <Input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Поиск по лиду или компании"
+              placeholder={
+                mode === "companies"
+                  ? "Поиск по контакту или компании"
+                  : "Поиск по событию или участнику"
+              }
               className="pl-9"
             />
           </div>
         </div>
 
-        <section className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <SalesStat
-            icon={Handshake}
-            label="Лидов в работе"
-            value={String(leads.length)}
-            detail={plural(leads.length, "контакт", "контакта", "контактов")}
-            accent
-          />
-          <SalesStat
-            icon={TrendingUp}
-            label="Потенциальная сумма"
-            value={formatCurrency(totalAmount)}
-            detail={`Средняя — ${formatCurrency(averageAmount)}`}
-          />
-          <SalesStat
+        <div
+          className="mb-5 grid max-w-[620px] grid-cols-2 rounded-lg border border-hairline-strong bg-canvas p-1 shadow-card"
+          role="tablist"
+          aria-label="Формат продаж"
+        >
+          <ModeTab
+            active={mode === "companies"}
             icon={Building2}
-            label="Компаний"
-            value={String(companiesCount)}
-            detail="уникальных организаций"
+            label="Продажи компаниям"
+            count={leads.length}
+            onClick={() => {
+              setMode("companies");
+              setSearch("");
+            }}
           />
-        </section>
+          <ModeTab
+            active={mode === "events"}
+            icon={CalendarDays}
+            label="События"
+            count={events.length}
+            onClick={() => {
+              setMode("events");
+              setSearch("");
+            }}
+          />
+        </div>
 
-        {leadsQuery.isError && (
-          <Panel className="mb-5 border-tag-red-bg bg-tag-red-bg/20 p-4">
-            <p className="text-[14px] font-medium text-danger">
-              Не удалось загрузить лидов
-            </p>
-            <p className="mt-1 text-[12px] text-ink-3">
-              {asApiError(leadsQuery.error).message}
-            </p>
-          </Panel>
+        {mode === "companies" ? (
+          <>
+            <section className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <SalesStat
+                icon={Handshake}
+                label="Сделок в работе"
+                value={String(leads.length)}
+                detail={plural(leads.length, "контакт", "контакта", "контактов")}
+                accent
+              />
+              <SalesStat
+                icon={TrendingUp}
+                label="Потенциальная сумма"
+                value={formatCurrency(totalAmount)}
+                detail={`Средняя — ${formatCurrency(averageAmount)}`}
+              />
+              <SalesStat
+                icon={Building2}
+                label="Компаний"
+                value={String(companiesCount)}
+                detail="уникальных организаций"
+              />
+            </section>
+
+            {leadsQuery.isError && (
+              <LoadError
+                title="Не удалось загрузить корпоративные продажи"
+                error={leadsQuery.error}
+              />
+            )}
+
+            <CompanySalesTable
+              leads={filteredLeads}
+              loading={leadsQuery.isLoading}
+              search={search}
+              canUpdate={canUpdate}
+              canDelete={canDelete}
+            />
+          </>
+        ) : (
+          <>
+            <section className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <SalesStat
+                icon={CalendarDays}
+                label="Событий"
+                value={String(events.length)}
+                detail={plural(events.length, "дата", "даты", "дат")}
+                accent
+              />
+              <SalesStat
+                icon={UsersRound}
+                label="Участников"
+                value={`${eventParticipants} / ${eventCapacity}`}
+                detail={`${Math.max(
+                  0,
+                  eventCapacity - eventParticipants
+                )} свободно`}
+              />
+              <SalesStat
+                icon={TrendingUp}
+                label="Сумма записей"
+                value={formatCurrency(eventAmount)}
+                detail="по всем участникам"
+              />
+            </section>
+
+            {eventsQuery.isError && (
+              <LoadError
+                title="Не удалось загрузить события"
+                error={eventsQuery.error}
+              />
+            )}
+
+            <EventsWorkspace
+              events={filteredEvents}
+              selectedEvent={selectedEvent}
+              loading={eventsQuery.isLoading}
+              search={search}
+              canCreate={canCreate}
+              canUpdate={canUpdate}
+              canDelete={canDelete}
+              onSelect={setSelectedEventId}
+            />
+          </>
         )}
-
-        <Panel>
-          <PanelHeader>
-            <PanelTitle>Лиды</PanelTitle>
-            <span className="text-[12px] text-ink-3">
-              {leadsQuery.isLoading
-                ? "Загрузка…"
-                : `${filteredLeads.length} ${plural(
-                    filteredLeads.length,
-                    "запись",
-                    "записи",
-                    "записей"
-                  )}`}
-            </span>
-          </PanelHeader>
-
-          <Table>
-            <THead>
-              <TR>
-                <TH>Имя лида</TH>
-                <TH>Компания</TH>
-                <TH className="text-right">Сумма</TH>
-                <TH>Комментарии</TH>
-                <TH className="w-20" />
-              </TR>
-            </THead>
-            <tbody>
-              {filteredLeads.map((lead) => (
-                <SalesLeadRow
-                  key={lead.id}
-                  lead={lead}
-                  canUpdate={canUpdate}
-                  canDelete={canDelete}
-                />
-              ))}
-              {!leadsQuery.isLoading && filteredLeads.length === 0 && (
-                <TR>
-                  <TD colSpan={5} className="py-14 text-center">
-                    <div className="mx-auto flex max-w-xs flex-col items-center">
-                      <span className="mb-3 grid h-10 w-10 place-items-center rounded-full bg-surface-2 text-ink-4">
-                        <Handshake className="h-4 w-4" />
-                      </span>
-                      <p className="text-[14px] font-medium text-ink">
-                        {search ? "Лиды не найдены" : "Пока нет лидов"}
-                      </p>
-                      <p className="mt-1 text-[12px] text-ink-3">
-                        {search
-                          ? "Попробуйте изменить поисковый запрос."
-                          : "Добавьте первый контакт для отдела продаж."}
-                      </p>
-                    </div>
-                  </TD>
-                </TR>
-              )}
-            </tbody>
-          </Table>
-        </Panel>
       </main>
     </>
+  );
+}
+
+function ModeTab({
+  active,
+  icon: Icon,
+  label,
+  count,
+  onClick,
+}: {
+  active: boolean;
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  count: number;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      onClick={onClick}
+      className={cn(
+        "flex min-w-0 items-center justify-center gap-2 rounded-md px-2 py-2 text-[13px] font-medium transition-all sm:px-3",
+        active
+          ? "bg-surface-2 text-ink shadow-[0_1px_2px_rgba(15,15,15,0.06)]"
+          : "text-ink-3 hover:bg-surface hover:text-ink"
+      )}
+    >
+      <Icon
+        className={cn(
+          "h-3.5 w-3.5 shrink-0",
+          active && "text-tag-blue-fg"
+        )}
+      />
+      <span className="truncate">{label}</span>
+      <span
+        className={cn(
+          "rounded px-1.5 py-0.5 text-[10px] tabular-nums",
+          active ? "bg-canvas text-ink-2" : "bg-surface-2 text-ink-4"
+        )}
+      >
+        {count}
+      </span>
+    </button>
+  );
+}
+
+function CompanySalesTable({
+  leads,
+  loading,
+  search,
+  canUpdate,
+  canDelete,
+}: {
+  leads: SalesLead[];
+  loading: boolean;
+  search: string;
+  canUpdate: boolean;
+  canDelete: boolean;
+}) {
+  return (
+    <Panel>
+      <PanelHeader>
+        <PanelTitle>Корпоративные сделки</PanelTitle>
+        <span className="text-[12px] text-ink-3">
+          {loading
+            ? "Загрузка…"
+            : `${leads.length} ${plural(
+                leads.length,
+                "запись",
+                "записи",
+                "записей"
+              )}`}
+        </span>
+      </PanelHeader>
+
+      <Table>
+        <THead>
+          <TR>
+            <TH>Контакт</TH>
+            <TH>Компания</TH>
+            <TH className="text-right">Полная сумма</TH>
+            <TH>Комментарии</TH>
+            <TH className="w-20" />
+          </TR>
+        </THead>
+        <tbody>
+          {leads.map((lead) => (
+            <SalesLeadRow
+              key={lead.id}
+              lead={lead}
+              canUpdate={canUpdate}
+              canDelete={canDelete}
+            />
+          ))}
+          {!loading && leads.length === 0 && (
+            <TR>
+              <TD colSpan={5} className="py-14 text-center">
+                <EmptyState
+                  icon={Handshake}
+                  title={search ? "Сделки не найдены" : "Пока нет сделок"}
+                  detail={
+                    search
+                      ? "Попробуйте изменить поисковый запрос."
+                      : "Добавьте первую корпоративную продажу."
+                  }
+                />
+              </TD>
+            </TR>
+          )}
+        </tbody>
+      </Table>
+    </Panel>
+  );
+}
+
+function EventsWorkspace({
+  events,
+  selectedEvent,
+  loading,
+  search,
+  canCreate,
+  canUpdate,
+  canDelete,
+  onSelect,
+}: {
+  events: SalesEvent[];
+  selectedEvent: SalesEvent | null;
+  loading: boolean;
+  search: string;
+  canCreate: boolean;
+  canUpdate: boolean;
+  canDelete: boolean;
+  onSelect: (id: number) => void;
+}) {
+  if (!loading && events.length === 0) {
+    return (
+      <Panel className="grid min-h-[280px] place-items-center p-8 text-center">
+        <div className="flex max-w-sm flex-col items-center">
+          <span className="mb-4 grid h-12 w-12 place-items-center rounded-xl bg-tag-orange-bg text-tag-orange-fg">
+            <CalendarDays className="h-5 w-5" />
+          </span>
+          <h3 className="font-display text-[18px] text-ink">
+            {search ? "События не найдены" : "Создайте первое событие"}
+          </h3>
+          <p className="mt-2 text-[13px] text-ink-3">
+            {search
+              ? "Попробуйте изменить поисковый запрос."
+              : "Укажите дату и количество мест, затем добавляйте участников по одному."}
+          </p>
+          {!search && canCreate && (
+            <SalesEventDialog
+              trigger={
+                <Button variant="primary" size="md" className="mt-5">
+                  <Plus className="h-3.5 w-3.5" />
+                  Создать событие
+                </Button>
+              }
+            />
+          )}
+        </div>
+      </Panel>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 gap-4 xl:grid-cols-[340px_minmax(0,1fr)]">
+      <Panel className="min-w-0 overflow-hidden">
+        <PanelHeader>
+          <PanelTitle>События</PanelTitle>
+          <span className="text-[12px] text-ink-3">
+            {loading ? "Загрузка…" : events.length}
+          </span>
+        </PanelHeader>
+        <div className="divide-y divide-hairline">
+          {events.map((event) => {
+            const active = selectedEvent?.id === event.id;
+            const freePlaces = Math.max(
+              0,
+              event.capacity - event.participant_count
+            );
+            return (
+              <button
+                key={event.id}
+                type="button"
+                onClick={() => onSelect(event.id)}
+                className={cn(
+                  "group/event flex w-full items-center gap-3 px-4 py-3 text-left transition-colors",
+                  active ? "bg-accent-soft" : "hover:bg-surface"
+                )}
+              >
+                <EventDateBadge value={event.event_date} active={active} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="truncate text-[13px] font-semibold text-ink">
+                      {event.name}
+                    </span>
+                    <ChevronRight
+                      className={cn(
+                        "h-3.5 w-3.5 shrink-0 text-ink-4 transition-transform",
+                        active && "translate-x-0.5 text-accent"
+                      )}
+                    />
+                  </div>
+                  <div className="mt-1.5 flex items-center justify-between gap-2 text-[11px]">
+                    <span
+                      className={cn(
+                        "font-medium",
+                        freePlaces === 0 ? "text-success" : "text-ink-3"
+                      )}
+                    >
+                      {event.participant_count}/{event.capacity} участников
+                    </span>
+                    <span className="tabular-nums text-ink-3">
+                      {formatCurrency(event.total_amount)}
+                    </span>
+                  </div>
+                  <CapacityBar
+                    count={event.participant_count}
+                    capacity={event.capacity}
+                    className="mt-2"
+                  />
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </Panel>
+
+      {selectedEvent && (
+        <EventDetail
+          event={selectedEvent}
+          canCreate={canCreate}
+          canUpdate={canUpdate}
+          canDelete={canDelete}
+        />
+      )}
+    </div>
+  );
+}
+
+function EventDetail({
+  event,
+  canCreate,
+  canUpdate,
+  canDelete,
+}: {
+  event: SalesEvent;
+  canCreate: boolean;
+  canUpdate: boolean;
+  canDelete: boolean;
+}) {
+  const queryClient = useQueryClient();
+  const freePlaces = Math.max(0, event.capacity - event.participant_count);
+  const removeMutation = useMutation({
+    mutationFn: () => sales.events.remove(event.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sales-events"] });
+      toast.success("Событие удалено.");
+    },
+    onError: (error) => toast.error(asApiError(error).message),
+  });
+
+  return (
+    <Panel className="min-w-0 overflow-hidden">
+      <div className="flex flex-col gap-3 border-b border-hairline px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="truncate text-[15px] font-semibold text-ink">
+              {event.name}
+            </span>
+            <span
+              className={cn(
+                "shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium",
+                freePlaces === 0
+                  ? "bg-tag-green-bg text-tag-green-fg"
+                  : "bg-tag-orange-bg text-tag-orange-fg"
+              )}
+            >
+              {freePlaces === 0 ? "Группа собрана" : `${freePlaces} свободно`}
+            </span>
+          </div>
+          <p className="mt-0.5 text-[12px] text-ink-3">
+            {formatEventDate(event.event_date)}
+          </p>
+        </div>
+
+        <div className="flex items-center gap-1.5">
+          {canCreate && freePlaces > 0 && (
+            <EventParticipantDialog
+              eventId={event.id}
+              eventName={event.name}
+              trigger={
+                <Button variant="primary" size="sm">
+                  <UserPlus className="h-3.5 w-3.5" />
+                  Добавить участника
+                </Button>
+              }
+            />
+          )}
+          {canCreate && freePlaces === 0 && (
+            <Button variant="secondary" size="sm" disabled>
+              <UsersRound className="h-3.5 w-3.5" />
+              Мест нет
+            </Button>
+          )}
+          {canUpdate && (
+            <SalesEventDialog
+              initial={event}
+              trigger={
+                <Button variant="ghost" size="icon" title="Изменить событие">
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
+              }
+            />
+          )}
+          {canDelete && (
+            <Button
+              variant="ghost"
+              size="icon"
+              title="Удалить событие"
+              disabled={removeMutation.isPending}
+              onClick={() => {
+                if (
+                  confirm(
+                    `Удалить событие «${event.name}» и всех его участников?`
+                  )
+                ) {
+                  removeMutation.mutate();
+                }
+              }}
+              className="hover:bg-tag-red-bg/30 hover:text-danger"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          )}
+        </div>
+      </div>
+
+      <div className="grid gap-3 border-b border-hairline bg-surface/70 p-4 sm:grid-cols-[1fr_auto] sm:items-center sm:px-5">
+        <div>
+          <div className="flex items-center justify-between gap-3 text-[12px]">
+            <span className="font-medium text-ink-2">Заполнение группы</span>
+            <span className="tabular-nums text-ink-3">
+              {event.participant_count} из {event.capacity}
+            </span>
+          </div>
+          <CapacityBar
+            count={event.participant_count}
+            capacity={event.capacity}
+            className="mt-2.5"
+          />
+          {event.comments && (
+            <p className="mt-3 flex items-start gap-2 text-[12px] text-ink-3">
+              <MessageSquareText className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <span>{event.comments}</span>
+            </p>
+          )}
+        </div>
+        <div className="rounded-lg border border-hairline bg-canvas px-4 py-2.5 sm:min-w-[150px] sm:text-right">
+          <div className="text-[10px] font-medium uppercase tracking-[0.08em] text-ink-4">
+            Сумма группы
+          </div>
+          <div className="mt-0.5 font-display text-[18px] tabular-nums text-ink">
+            {formatCurrency(event.total_amount)}
+          </div>
+        </div>
+      </div>
+
+      <Table>
+        <THead>
+          <TR>
+            <TH>Участник</TH>
+            <TH>Компания / организация</TH>
+            <TH className="text-right">Сумма</TH>
+            <TH>Комментарий</TH>
+            <TH className="w-20" />
+          </TR>
+        </THead>
+        <tbody>
+          {event.participants.map((participant) => (
+            <EventParticipantRow
+              key={participant.id}
+              event={event}
+              participant={participant}
+              canUpdate={canUpdate}
+              canDelete={canDelete}
+            />
+          ))}
+          {event.participants.length === 0 && (
+            <TR>
+              <TD colSpan={5} className="py-12 text-center">
+                <EmptyState
+                  icon={CircleUserRound}
+                  title="Участников пока нет"
+                  detail="Добавьте первого человека в группу."
+                >
+                  {canCreate && (
+                    <EventParticipantDialog
+                      eventId={event.id}
+                      eventName={event.name}
+                      trigger={
+                        <Button variant="secondary" size="sm" className="mt-4">
+                          <UserPlus className="h-3.5 w-3.5" />
+                          Добавить участника
+                        </Button>
+                      }
+                    />
+                  )}
+                </EmptyState>
+              </TD>
+            </TR>
+          )}
+        </tbody>
+      </Table>
+    </Panel>
+  );
+}
+
+function EventParticipantRow({
+  event,
+  participant,
+  canUpdate,
+  canDelete,
+}: {
+  event: SalesEvent;
+  participant: SalesEventParticipant;
+  canUpdate: boolean;
+  canDelete: boolean;
+}) {
+  const queryClient = useQueryClient();
+  const removeMutation = useMutation({
+    mutationFn: () => sales.eventParticipants.remove(participant.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sales-events"] });
+      toast.success("Участник удалён из события.");
+    },
+    onError: (error) => toast.error(asApiError(error).message),
+  });
+
+  return (
+    <TR>
+      <TD>
+        <div className="min-w-[150px]">
+          <div className="font-medium text-ink">{participant.lead_name}</div>
+          <div className="mt-0.5 text-[11px] text-ink-4">
+            Добавлен {formatDate(participant.created_at)}
+          </div>
+        </div>
+      </TD>
+      <TD>
+        <div
+          className={cn(
+            "flex min-w-[150px] items-center gap-2",
+            participant.company ? "text-ink-2" : "text-ink-4"
+          )}
+        >
+          <span className="grid h-6 w-6 shrink-0 place-items-center rounded bg-surface-2 text-ink-3">
+            <Building2 className="h-3.5 w-3.5" />
+          </span>
+          <span>{participant.company || "Не указана"}</span>
+        </div>
+      </TD>
+      <TD className="min-w-[130px] text-right font-medium tabular-nums">
+        {formatCurrency(participant.amount)}
+      </TD>
+      <TD>
+        <div
+          className={cn(
+            "flex min-w-[200px] max-w-[360px] items-center gap-2 text-[13px]",
+            participant.comments ? "text-ink-3" : "text-ink-4"
+          )}
+          title={participant.comments || undefined}
+        >
+          <MessageSquareText className="h-3.5 w-3.5 shrink-0" />
+          <span className="truncate">
+            {participant.comments || "Без комментария"}
+          </span>
+        </div>
+      </TD>
+      <TD>
+        {(canUpdate || canDelete) && (
+          <div className="flex items-center justify-end gap-1 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
+            {canUpdate && (
+              <EventParticipantDialog
+                eventId={event.id}
+                eventName={event.name}
+                initial={participant}
+                trigger={
+                  <button
+                    title="Редактировать"
+                    className="grid h-7 w-7 place-items-center rounded text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                }
+              />
+            )}
+            {canDelete && (
+              <button
+                title="Удалить"
+                disabled={removeMutation.isPending}
+                onClick={() => {
+                  if (
+                    confirm(
+                      `Удалить участника «${participant.lead_name}» из события?`
+                    )
+                  ) {
+                    removeMutation.mutate();
+                  }
+                }}
+                className="grid h-7 w-7 place-items-center rounded text-ink-3 transition-colors hover:bg-tag-red-bg/30 hover:text-danger disabled:opacity-40"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+        )}
+      </TD>
+    </TR>
   );
 }
 
@@ -238,7 +858,7 @@ function SalesLeadRow({
     mutationFn: () => sales.remove(lead.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["sales-leads"] });
-      toast.success("Лид удалён.");
+      toast.success("Корпоративная сделка удалена.");
     },
     onError: (error) => toast.error(asApiError(error).message),
   });
@@ -297,7 +917,7 @@ function SalesLeadRow({
                 title="Удалить"
                 disabled={removeMutation.isPending}
                 onClick={() => {
-                  if (confirm(`Удалить лида «${lead.lead_name}»?`)) {
+                  if (confirm(`Удалить сделку с «${lead.company}»?`)) {
                     removeMutation.mutate();
                   }
                 }}
@@ -356,4 +976,104 @@ function SalesStat({
       </div>
     </div>
   );
+}
+
+function CapacityBar({
+  count,
+  capacity,
+  className,
+}: {
+  count: number;
+  capacity: number;
+  className?: string;
+}) {
+  const percent = capacity > 0 ? Math.min(100, (count / capacity) * 100) : 0;
+  return (
+    <div
+      className={cn("h-1.5 overflow-hidden rounded-full bg-surface-3", className)}
+      title={`Заполнено ${Math.round(percent)}%`}
+    >
+      <div
+        className={cn(
+          "h-full rounded-full transition-[width] duration-300",
+          percent >= 100 ? "bg-success" : "bg-accent"
+        )}
+        style={{ width: `${percent}%` }}
+      />
+    </div>
+  );
+}
+
+function EventDateBadge({
+  value,
+  active,
+}: {
+  value: string;
+  active: boolean;
+}) {
+  const date = new Date(`${value}T00:00:00`);
+  const day = new Intl.DateTimeFormat("ru-RU", { day: "2-digit" }).format(date);
+  const month = new Intl.DateTimeFormat("ru-RU", { month: "short" })
+    .format(date)
+    .replace(".", "");
+
+  return (
+    <span
+      className={cn(
+        "grid h-12 w-12 shrink-0 place-items-center rounded-lg border bg-canvas text-center shadow-card",
+        active ? "border-accent/30" : "border-hairline"
+      )}
+    >
+      <span className="flex flex-col leading-none">
+        <span className="font-display text-[17px] tabular-nums text-ink">{day}</span>
+        <span className="mt-1 text-[9px] font-semibold uppercase tracking-[0.08em] text-tag-orange-fg">
+          {month}
+        </span>
+      </span>
+    </span>
+  );
+}
+
+function EmptyState({
+  icon: Icon,
+  title,
+  detail,
+  children,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  detail: string;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="mx-auto flex max-w-xs flex-col items-center">
+      <span className="mb-3 grid h-10 w-10 place-items-center rounded-full bg-surface-2 text-ink-4">
+        <Icon className="h-4 w-4" />
+      </span>
+      <p className="text-[14px] font-medium text-ink">{title}</p>
+      <p className="mt-1 text-[12px] text-ink-3">{detail}</p>
+      {children}
+    </div>
+  );
+}
+
+function LoadError({ title, error }: { title: string; error: unknown }) {
+  return (
+    <Panel className="mb-5 border-tag-red-bg bg-tag-red-bg/20 p-4">
+      <p className="text-[14px] font-medium text-danger">{title}</p>
+      <p className="mt-1 text-[12px] text-ink-3">
+        {asApiError(error).message}
+      </p>
+    </Panel>
+  );
+}
+
+function formatEventDate(value: string) {
+  const date = new Date(`${value}T00:00:00`);
+  return new Intl.DateTimeFormat("ru-RU", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(date);
 }

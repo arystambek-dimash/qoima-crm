@@ -31,6 +31,10 @@ import type {
   PasswordResetConfirm,
   SalesLead,
   SalesLeadCreate,
+  SalesEvent,
+  SalesEventCreate,
+  SalesEventParticipant,
+  SalesEventParticipantCreate,
   Spending,
   SpendingAnalytics,
   SpendingCreate,
@@ -434,6 +438,38 @@ export const sales = {
     api.patch<SalesLead>(`/sales/${id}/`, payload).then((r) => r.data),
   remove: (id: number) =>
     api.delete<void>(`/sales/${id}/`).then((r) => r.data),
+  events: {
+    list: () =>
+      api
+        .get<SalesEvent[] | { results: SalesEvent[] }>("/sales/events/")
+        .then((r) => unwrap(r.data)),
+    create: (payload: SalesEventCreate) =>
+      api.post<SalesEvent>("/sales/events/", payload).then((r) => r.data),
+    update: (id: number, payload: Partial<SalesEventCreate>) =>
+      api.patch<SalesEvent>(`/sales/events/${id}/`, payload).then((r) => r.data),
+    remove: (id: number) =>
+      api.delete<void>(`/sales/events/${id}/`).then((r) => r.data),
+  },
+  eventParticipants: {
+    create: (payload: SalesEventParticipantCreate) =>
+      api
+        .post<SalesEventParticipant>("/sales/event-participants/", payload)
+        .then((r) => r.data),
+    update: (
+      id: number,
+      payload: Partial<SalesEventParticipantCreate>
+    ) =>
+      api
+        .patch<SalesEventParticipant>(
+          `/sales/event-participants/${id}/`,
+          payload
+        )
+        .then((r) => r.data),
+    remove: (id: number) =>
+      api
+        .delete<void>(`/sales/event-participants/${id}/`)
+        .then((r) => r.data),
+  },
 };
 
 /* ---------------- Dashboard ----------------

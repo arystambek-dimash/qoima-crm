@@ -433,6 +433,45 @@ export interface SalesLeadCreate {
   comments?: string;
 }
 
+export interface SalesEventParticipant {
+  id: number;
+  event: number;
+  lead_name: string;
+  company: string;
+  amount: string;
+  comments: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SalesEventParticipantCreate {
+  event: number;
+  lead_name: string;
+  company?: string;
+  amount: string;
+  comments?: string;
+}
+
+export interface SalesEvent {
+  id: number;
+  name: string;
+  event_date: string;
+  capacity: number;
+  comments: string;
+  participant_count: number;
+  total_amount: string;
+  participants: SalesEventParticipant[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SalesEventCreate {
+  name: string;
+  event_date: string;
+  capacity: number;
+  comments?: string;
+}
+
 /* -------------------- Spendings -------------------- */
 
 export interface Spending {

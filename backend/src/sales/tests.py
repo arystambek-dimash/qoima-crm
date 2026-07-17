@@ -4,7 +4,7 @@ from rest_framework.test import APIClient
 
 from core.enums import UserRole
 from src.employees.models import Employee
-from src.sales.models import Lead
+from src.sales.models import EventParticipant, Lead, SalesEvent
 
 
 class SalesLeadApiTests(TestCase):
@@ -162,3 +162,109 @@ class SalesLeadApiTests(TestCase):
 
         self.assertEqual(allowed_list.status_code, 200)
         self.assertEqual(still_denied_create.status_code, 403)
+
+    def test_employee_can_create_event_and_add_participants(self):
+        self.client.force_authenticate(self.employee)
+
+        created_event = self.client.post(
+            "/api/sales/events/",
+            {
+                "name": "Интенсив 3 августа",
+                "event_date": "2026-08-03",
+                "capacity": 15,
+                "comments": "Группа выходного дня",
+            },
+            format="json",
+        )
+
+        self.assertEqual(created_event.status_code, 201)
+        event_id = created_event.data["id"]
+
+        first_participant = self.client.post(
+            "/api/sales/event-participants/",
+            {
+                "event": event_id,
+                "lead_name": "Айдана Садыкова",
+                "company": "Alem Logistics",
+                "amount": "100000.00",
+                "comments": "Оплата по счёту",
+            },
+            format="json",
+        )
+        second_participant = self.client.post(
+            "/api/sales/event-participants/",
+            {
+                "event": event_id,
+                "lead_name": "Данияр Иманов",
+                "company": "",
+                "amount": "120000.00",
+                "comments": "",
+            },
+            format="json",
+        )
+
+        self.assertEqual(first_participant.status_code, 201)
+        self.assertEqual(second_participant.status_code, 201)
+        self.assertEqual(EventParticipant.objects.count(), 2)
+
+        event_detail = self.client.get(f"/api/sales/events/{event_id}/")
+
+        self.assertEqual(event_detail.status_code, 200)
+        self.assertEqual(event_detail.data["participant_count"], 2)
+        self.assertEqual(event_detail.data["total_amount"], "220000.00")
+        self.assertEqual(len(event_detail.data["participants"]), 2)
+
+    def test_event_capacity_cannot_be_exceeded_or_reduced_below_group_size(self):
+        event = SalesEvent.objects.create(
+            name="Малая группа",
+            event_date="2026-08-10",
+            capacity=1,
+        )
+        EventParticipant.objects.create(
+            event=event,
+            lead_name="Первый участник",
+            amount="50000.00",
+        )
+        self.client.force_authenticate(self.employee)
+
+        extra_participant = self.client.post(
+            "/api/sales/event-participants/",
+            {
+                "event": event.id,
+                "lead_name": "Лишний участник",
+                "amount": "50000.00",
+            },
+            format="json",
+        )
+        invalid_capacity = self.client.patch(
+            f"/api/sales/events/{event.id}/",
+            {"capacity": 0},
+            format="json",
+        )
+
+        self.assertEqual(extra_participant.status_code, 400)
+        self.assertIn("event", extra_participant.data)
+        self.assertEqual(invalid_capacity.status_code, 400)
+        self.assertIn("capacity", invalid_capacity.data)
+
+    def test_sales_event_endpoints_use_sales_permissions(self):
+        self.employee_profile.sales_can_retrieve = False
+        self.employee_profile.sales_can_create = False
+        self.employee_profile.save(
+            update_fields=("sales_can_retrieve", "sales_can_create")
+        )
+        self.client.force_authenticate(self.employee)
+
+        denied_list = self.client.get("/api/sales/events/")
+        denied_create = self.client.post(
+            "/api/sales/events/",
+            {
+                "name": "Закрытое событие",
+                "event_date": "2026-08-20",
+                "capacity": 10,
+            },
+            format="json",
+        )
+
+        self.assertEqual(denied_list.status_code, 403)
+        self.assertEqual(denied_create.status_code, 403)
