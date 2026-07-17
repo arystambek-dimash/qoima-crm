@@ -13,6 +13,7 @@ import {
   User2,
   Wallet as WalletIcon,
   CalendarCheck,
+  Handshake,
 } from "lucide-react";
 import type { EmployeePermissionField } from "@/lib/types";
 
@@ -39,6 +40,13 @@ export const NAV: { label: string; items: NavItem[] }[] = [
       // Everyone with an account can see projects: employees see all (or whatever
       // their permissions allow), collaborators see only their own projects.
       { href: "/projects", label: "Проекты", icon: Briefcase },
+      {
+        href: "/sales",
+        label: "Продажи",
+        icon: Handshake,
+        roles: ["employee"],
+        requires: "sales_can_retrieve",
+      },
     ],
   },
   {

@@ -38,6 +38,15 @@ const PERMISSION_GROUPS: {
     ],
   },
   {
+    title: "Продажи",
+    fields: [
+      { f: "sales_can_retrieve", label: "Видеть лидов" },
+      { f: "sales_can_create", label: "Добавлять лидов" },
+      { f: "sales_can_update", label: "Изменять лидов" },
+      { f: "sales_can_delete", label: "Удалять лидов" },
+    ],
+  },
+  {
     title: "Задачи",
     fields: [
       { f: "tasks_can_create", label: "Создавать задачи" },
@@ -97,6 +106,15 @@ const ROLE_PRESETS: Record<
       deals_can_create: true,
       deals_can_update: true,
       deals_can_view_amount: true,
+    },
+  },
+  sales_manager: {
+    label: "Менеджер продаж",
+    permissions: {
+      sales_can_retrieve: true,
+      sales_can_create: true,
+      sales_can_update: true,
+      sales_can_delete: true,
     },
   },
   accountant: {

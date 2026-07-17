@@ -47,6 +47,10 @@ const PERMISSION_LABELS: Record<EmployeePermissionField, string> = {
   wallets_can_update: "Кошелёк · изменение",
   wallets_can_delete: "Кошелёк · удаление",
   wallets_can_view_balance: "Кошелёк · баланс",
+  sales_can_retrieve: "Продажи · просмотр",
+  sales_can_create: "Продажи · создание",
+  sales_can_update: "Продажи · изменение",
+  sales_can_delete: "Продажи · удаление",
 };
 
 export default function EmployeesPage() {

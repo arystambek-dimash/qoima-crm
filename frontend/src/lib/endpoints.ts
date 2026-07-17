@@ -29,6 +29,8 @@ import type {
   OnboardTask,
   OnboardTaskCreate,
   PasswordResetConfirm,
+  SalesLead,
+  SalesLeadCreate,
   Spending,
   SpendingAnalytics,
   SpendingCreate,
@@ -417,6 +419,21 @@ export const incomes = {
         params: incomesParams(filters),
       })
       .then((r) => r.data),
+};
+
+/* ---------------- Sales ---------------- */
+
+export const sales = {
+  list: () =>
+    api
+      .get<SalesLead[] | { results: SalesLead[] }>("/sales/")
+      .then((r) => unwrap(r.data)),
+  create: (payload: SalesLeadCreate) =>
+    api.post<SalesLead>("/sales/", payload).then((r) => r.data),
+  update: (id: number, payload: Partial<SalesLeadCreate>) =>
+    api.patch<SalesLead>(`/sales/${id}/`, payload).then((r) => r.data),
+  remove: (id: number) =>
+    api.delete<void>(`/sales/${id}/`).then((r) => r.data),
 };
 
 /* ---------------- Dashboard ----------------

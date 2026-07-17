@@ -25,3 +25,7 @@ class Employee(models.Model):
     wallets_can_delete = models.BooleanField(default=False)
     wallets_can_view_balance = models.BooleanField(default=False)
     deals_can_view_amount = models.BooleanField(default=False)
+    sales_can_retrieve = models.BooleanField(default=False)
+    sales_can_create = models.BooleanField(default=False)
+    sales_can_update = models.BooleanField(default=False)
+    sales_can_delete = models.BooleanField(default=False)

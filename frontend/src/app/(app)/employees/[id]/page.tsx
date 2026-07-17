@@ -40,6 +40,15 @@ const PERMISSION_GROUPS: {
     ],
   },
   {
+    title: "Продажи",
+    fields: [
+      { f: "sales_can_retrieve", label: "Видеть лидов" },
+      { f: "sales_can_create", label: "Добавлять лидов" },
+      { f: "sales_can_update", label: "Изменять лидов" },
+      { f: "sales_can_delete", label: "Удалять лидов" },
+    ],
+  },
+  {
     title: "Задачи",
     fields: [
       { f: "tasks_can_create", label: "Создавать задачи" },

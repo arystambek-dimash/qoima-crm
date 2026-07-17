@@ -23,6 +23,10 @@ EMPLOYEE_PERMISSION_FIELDS = (
     "wallets_can_delete",
     "wallets_can_view_balance",
     "deals_can_view_amount",
+    "sales_can_retrieve",
+    "sales_can_create",
+    "sales_can_update",
+    "sales_can_delete",
 )
 
 

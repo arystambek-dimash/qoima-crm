@@ -36,6 +36,10 @@ export const EMPLOYEE_PERMISSION_FIELDS = [
   "wallets_can_delete",
   "wallets_can_view_balance",
   "deals_can_view_amount",
+  "sales_can_retrieve",
+  "sales_can_create",
+  "sales_can_update",
+  "sales_can_delete",
 ] as const;
 
 export type EmployeePermissionField = (typeof EMPLOYEE_PERMISSION_FIELDS)[number];
@@ -408,6 +412,25 @@ export interface IncomeCreate {
   type: string;
   amount: string;
   note?: string;
+}
+
+/* -------------------- Sales -------------------- */
+
+export interface SalesLead {
+  id: number;
+  lead_name: string;
+  company: string;
+  amount: string;
+  comments: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SalesLeadCreate {
+  lead_name: string;
+  company: string;
+  amount: string;
+  comments?: string;
 }
 
 /* -------------------- Spendings -------------------- */

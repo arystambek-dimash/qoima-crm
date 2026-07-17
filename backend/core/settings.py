@@ -54,6 +54,7 @@ INSTALLED_APPS = [
     "src.spendings.apps.SpendingsConfig",
     "src.incomes.apps.IncomesConfig",
     "src.wallets.apps.WalletsConfig",
+    "src.sales.apps.SalesConfig",
     "src.telegram_bot.apps.TelegramBotConfig",
     "drf_spectacular",
     "rest_framework_simplejwt",

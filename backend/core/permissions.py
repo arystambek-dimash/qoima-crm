@@ -165,6 +165,17 @@ class AccountingPermissions(EmployeeFlagPermission):
     }
 
 
+class SalesPermissions(EmployeeFlagPermission):
+    permission_map = {
+        "list": "sales_can_retrieve",
+        "retrieve": "sales_can_retrieve",
+        "create": "sales_can_create",
+        "update": "sales_can_update",
+        "partial_update": "sales_can_update",
+        "destroy": "sales_can_delete",
+    }
+
+
 class WalletPermissions(EmployeeFlagPermission):
     permission_map = {
         "create": "wallets_can_create",
