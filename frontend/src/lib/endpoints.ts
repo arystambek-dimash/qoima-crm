@@ -1,5 +1,8 @@
 import { api } from "./api";
 import type {
+  Client,
+  ClientCreate,
+  ClientUpdate,
   DashboardAnalytics,
   DashboardFilters,
   DashboardMyTasksAnalytics,
@@ -94,6 +97,23 @@ export const users = {
     api.post<User>("/users/", payload).then((r) => r.data),
   update: (id: number, payload: UserUpdate) =>
     api.patch<User>(`/users/${id}/`, payload).then((r) => r.data),
+};
+
+/* ---------------- Clients (admin-side) ---------------- */
+
+export const clients = {
+  list: () =>
+    api
+      .get<Client[] | { results: Client[] }>("/clients/")
+      .then((r) => unwrapList(r.data)),
+  create: (payload: ClientCreate) =>
+    api.post<Client>("/clients/", payload).then((r) => r.data),
+  update: (id: number, payload: ClientUpdate) =>
+    api.patch<Client>(`/clients/${id}/`, payload).then((r) => r.data),
+  setPassword: (id: number, password: string) =>
+    api
+      .post<{ detail: string }>(`/clients/${id}/set-password/`, { password })
+      .then((r) => r.data),
 };
 
 /* ---------------- Employees ---------------- */

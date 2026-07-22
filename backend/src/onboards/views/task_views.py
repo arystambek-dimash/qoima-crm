@@ -88,6 +88,7 @@ class TaskViewSet(
 
         if pending_approval:
             transaction.on_commit(lambda: self._send_approval_request(task.pk))
+            transaction.on_commit(lambda: self._notify_responsibles(task.pk))
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -196,6 +197,13 @@ class TaskViewSet(
         from src.telegram_bot.services.task_approval import TelegramTaskApprovalService
 
         TelegramTaskApprovalService().send_request(task_id)
+
+    def _notify_responsibles(self, task_id):
+        from src.telegram_bot.services.task_notifications import (
+            notify_responsibles_about_client_task,
+        )
+
+        notify_responsibles_about_client_task(task_id)
 
     @action(detail=True, methods=["post"], url_path="assign")
     def assign(self, request, pk=None):

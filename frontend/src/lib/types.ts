@@ -15,6 +15,35 @@ export interface User {
   is_staff?: boolean;
 }
 
+/* -------------------- Clients (admin-side) -------------------- */
+
+export interface ClientProject {
+  id: number;
+  name: string;
+}
+
+export interface Client {
+  id: number;
+  username: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  projects: ClientProject[];
+}
+
+export interface ClientCreate {
+  email: string;
+  password: string;
+  first_name?: string;
+  last_name?: string;
+}
+
+export interface ClientUpdate {
+  email?: string;
+  first_name?: string;
+  last_name?: string;
+}
+
 /* -------------------- Employees -------------------- */
 
 export const EMPLOYEE_PERMISSION_FIELDS = [

@@ -14,6 +14,7 @@ import {
   Wallet as WalletIcon,
   CalendarCheck,
   Handshake,
+  Contact,
 } from "lucide-react";
 import type { EmployeePermissionField } from "@/lib/types";
 
@@ -27,6 +28,8 @@ export type NavItem = {
   requires?: EmployeePermissionField;
   /** For employees, show when they have at least one of these permissions. */
   requiresAny?: EmployeePermissionField[];
+  /** Show only to Django superusers/staff. */
+  superuserOnly?: boolean;
 };
 
 export const NAV: { label: string; items: NavItem[] }[] = [
@@ -57,6 +60,12 @@ export const NAV: { label: string; items: NavItem[] }[] = [
         label: "Сотрудники",
         icon: Users,
         roles: ["employee"],
+      },
+      {
+        href: "/clients",
+        label: "Клиенты",
+        icon: Contact,
+        superuserOnly: true,
       },
       {
         href: "/incomes",
@@ -109,6 +118,7 @@ export function useNavVisibility(): (item: NavItem) => boolean {
   return function isVisible(item: NavItem): boolean {
     // Django superusers and staff see everything
     if (isSuper) return true;
+    if (item.superuserOnly) return false;
     if (item.roles && !item.roles.includes(role as "employee" | "collaborator")) {
       return false;
     }

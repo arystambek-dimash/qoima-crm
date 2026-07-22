@@ -5,6 +5,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from rest_framework.test import APIClient
 
+from core.enums import UserRole
 from src.users.models import PasswordResetCode
 from src.users.password_reset import create_password_reset_code
 
@@ -102,3 +103,132 @@ class PasswordResetTests(TestCase):
         text = send_message.call_args.args[1]
         match = search(r"\b(\d{6})\b", text)
         self.assertIsNotNone(match)
+
+
+class ClientApiTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.superuser = get_user_model().objects.create_superuser(
+            username="admin",
+            email="admin@example.com",
+            password="admin-password",
+        )
+        self.employee = get_user_model().objects.create_user(
+            username="employee",
+            email="employee@example.com",
+            password="password",
+        )
+        self.collaborator = get_user_model().objects.create_user(
+            username="client-x",
+            email="client-x@example.com",
+            password="client-password",
+            role=UserRole.COLLABORATOR,
+        )
+
+    def test_only_superuser_can_access_clients(self):
+        self.assertEqual(self.client.get("/api/clients/").status_code, 401)
+
+        self.client.force_authenticate(self.employee)
+        self.assertEqual(self.client.get("/api/clients/").status_code, 403)
+
+        self.client.force_authenticate(self.collaborator)
+        self.assertEqual(self.client.get("/api/clients/").status_code, 403)
+
+    def test_superuser_lists_only_collaborators(self):
+        self.client.force_authenticate(self.superuser)
+
+        response = self.client.get("/api/clients/")
+
+        self.assertEqual(response.status_code, 200)
+        ids = {item["id"] for item in self.results(response)}
+        self.assertEqual(ids, {self.collaborator.id})
+
+    def test_superuser_creates_client_who_can_login(self):
+        self.client.force_authenticate(self.superuser)
+
+        response = self.client.post(
+            "/api/clients/",
+            {
+                "email": "new-client@example.com",
+                "password": "secret-123",
+                "first_name": "Новый",
+                "last_name": "Клиент",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        user = get_user_model().objects.get(email="new-client@example.com")
+        self.assertEqual(user.role, UserRole.COLLABORATOR)
+
+        login = APIClient().post(
+            "/api/users/login-via-email/",
+            {"email": "new-client@example.com", "password": "secret-123"},
+            format="json",
+        )
+        self.assertEqual(login.status_code, 200)
+        self.assertIn("access", login.data)
+
+    def test_create_client_rejects_duplicate_email(self):
+        self.client.force_authenticate(self.superuser)
+
+        response = self.client.post(
+            "/api/clients/",
+            {"email": "CLIENT-X@example.com", "password": "secret-123"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+
+    def test_create_client_rejects_short_password(self):
+        self.client.force_authenticate(self.superuser)
+
+        response = self.client.post(
+            "/api/clients/",
+            {"email": "short-pass@example.com", "password": "1234567"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+
+    def test_superuser_updates_client_data(self):
+        self.client.force_authenticate(self.superuser)
+
+        response = self.client.patch(
+            f"/api/clients/{self.collaborator.id}/",
+            {"first_name": "Обновлённый", "email": "renamed@example.com"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.collaborator.refresh_from_db()
+        self.assertEqual(self.collaborator.first_name, "Обновлённый")
+        self.assertEqual(self.collaborator.email, "renamed@example.com")
+
+    def test_clients_endpoint_cannot_touch_employees(self):
+        self.client.force_authenticate(self.superuser)
+
+        response = self.client.patch(
+            f"/api/clients/{self.employee.id}/",
+            {"first_name": "Hacked"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_set_password_changes_login(self):
+        self.client.force_authenticate(self.superuser)
+
+        response = self.client.post(
+            f"/api/clients/{self.collaborator.id}/set-password/",
+            {"password": "new-secret-123"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.collaborator.refresh_from_db()
+        self.assertFalse(self.collaborator.check_password("client-password"))
+        self.assertTrue(self.collaborator.check_password("new-secret-123"))
+
+    def results(self, response):
+        return response.data.get("results", response.data)

@@ -576,3 +576,142 @@ class TaskApprovalTelegramTests(TestCase):
             "date_start": "2026-06-01",
             "date_end": "2026-06-30",
         }
+
+
+class ClientTaskResponsibleNotificationTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.collaborator = get_user_model().objects.create_user(
+            username="client-n",
+            email="client-n@example.com",
+            password="password",
+            role=UserRole.COLLABORATOR,
+            first_name="Иван",
+            last_name="Клиентов",
+        )
+        self.responsible = get_user_model().objects.create_user(
+            username="resp-with-telegram",
+            email="resp-with-telegram@example.com",
+            password="password",
+            telegram_id=111111,
+        )
+        self.responsible_without_telegram = get_user_model().objects.create_user(
+            username="resp-without-telegram",
+            email="resp-without-telegram@example.com",
+            password="password",
+        )
+        self.deal = Deal.objects.create(
+            name="Мучной завод",
+            user=self.collaborator,
+            stage="active",
+            date_start="2026-06-01",
+            date_end="2026-06-30",
+            deal_amount="100000.00",
+            payment_type="cash",
+        )
+        self.deal.collaborators.add(self.collaborator)
+        self.deal.responsibles.add(
+            self.responsible,
+            self.responsible_without_telegram,
+        )
+        onboard = Onboard.objects.create(deal=self.deal, term_of_end="2026-06-30")
+        self.category = TaskCategory.objects.create(name="CRM", onboard=onboard)
+
+    @patch(
+        "src.telegram_bot.services.telegram.TelegramClient.send_message",
+        return_value=True,
+    )
+    def test_client_task_creation_notifies_responsibles_with_telegram(
+        self,
+        send_message,
+    ):
+        self.client.force_authenticate(self.collaborator)
+
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                "/api/onboards/tasks/",
+                self.task_payload(),
+                format="json",
+            )
+
+        self.assertEqual(response.status_code, 201)
+        send_message.assert_called_once()
+        chat_id, text = send_message.call_args.args
+        self.assertEqual(chat_id, self.responsible.telegram_id)
+        self.assertIn("Новая задача от клиента Иван Клиентов", text)
+        self.assertIn("Мучной завод", text)
+        self.assertIn("New task", text)
+        self.assertIn("на согласовании", text)
+
+    @patch(
+        "src.telegram_bot.services.telegram.TelegramClient.send_message",
+        return_value=True,
+    )
+    def test_employee_task_creation_does_not_notify_responsibles(self, send_message):
+        employee = get_user_model().objects.create_user(
+            username="employee-creator",
+            email="employee-creator@example.com",
+            password="password",
+        )
+        self.client.force_authenticate(employee)
+
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                "/api/onboards/tasks/",
+                self.task_payload(),
+                format="json",
+            )
+
+        self.assertEqual(response.status_code, 201)
+        send_message.assert_not_called()
+
+    @patch(
+        "src.telegram_bot.services.telegram.TelegramClient.send_message",
+        side_effect=Exception("telegram down"),
+    )
+    def test_notification_failure_does_not_break_task_creation(self, send_message):
+        self.client.force_authenticate(self.collaborator)
+
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                "/api/onboards/tasks/",
+                self.task_payload(),
+                format="json",
+            )
+
+        self.assertEqual(response.status_code, 201)
+        send_message.assert_called_once()
+        self.assertTrue(Task.objects.filter(pk=response.data["id"]).exists())
+
+    @patch(
+        "src.telegram_bot.services.telegram.TelegramClient.send_message",
+        return_value=True,
+    )
+    def test_notification_skipped_when_task_has_no_deal(self, send_message):
+        from src.telegram_bot.services.task_notifications import (
+            notify_responsibles_about_client_task,
+        )
+
+        category = TaskCategory.objects.create(name="No deal", onboard=None)
+        task = Task.objects.create(
+            category=category,
+            name="Orphan task",
+            type="deliverable",
+            date_start="2026-06-01",
+            date_end="2026-06-30",
+            created_by=self.collaborator,
+        )
+
+        notify_responsibles_about_client_task(task.pk)
+
+        send_message.assert_not_called()
+
+    def task_payload(self):
+        return {
+            "category": self.category.id,
+            "name": "New task",
+            "type": "deliverable",
+            "description": "Description",
+            "date_start": "2026-06-01",
+            "date_end": "2026-06-30",
+        }

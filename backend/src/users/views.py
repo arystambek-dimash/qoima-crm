@@ -7,6 +7,8 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from core.enums import UserRole
+from core.permissions import IsSuperuser
 from core.views import BasePermissionMixin, BaseSerializerMixin
 from src.telegram_bot.services.telegram import TelegramClient
 from src.users.password_reset import (
@@ -15,6 +17,10 @@ from src.users.password_reset import (
     reset_password_with_code,
 )
 from src.users.serializers import (
+    ClientCreateSerializer,
+    ClientSerializer,
+    ClientSetPasswordSerializer,
+    ClientUpdateSerializer,
     LoginViaEmailSerializer,
     PasswordResetConfirmSerializer,
     PasswordResetRequestSerializer,
@@ -166,3 +172,40 @@ class UserViewSet(
             f"Код восстановления пароля: {code}\n"
             "Код действует 10 минут. Если это были не вы, просто проигнорируйте."
         )
+
+
+class ClientViewSet(
+    BaseSerializerMixin,
+    BasePermissionMixin,
+    mixins.ListModelMixin,
+    mixins.CreateModelMixin,
+    mixins.RetrieveModelMixin,
+    mixins.UpdateModelMixin,
+    viewsets.GenericViewSet,
+):
+    serializer_class = ClientSerializer
+    permission_classes = [IsSuperuser]
+
+    serializers = {
+        "create": ClientCreateSerializer,
+        "update": ClientUpdateSerializer,
+        "partial_update": ClientUpdateSerializer,
+        "set_password": ClientSetPasswordSerializer,
+    }
+
+    def get_queryset(self):
+        return (
+            get_user_model()
+            .objects.filter(role=UserRole.COLLABORATOR)
+            .prefetch_related("primary_deals", "collaborator_deals")
+            .order_by("id")
+        )
+
+    @action(detail=True, methods=["post"], url_path="set-password")
+    def set_password(self, request, pk=None):
+        client = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        client.set_password(serializer.validated_data["password"])
+        client.save(update_fields=["password"])
+        return Response({"detail": "Пароль обновлён."}, status=status.HTTP_200_OK)

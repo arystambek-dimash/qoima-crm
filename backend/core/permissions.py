@@ -40,6 +40,15 @@ def can_view_deal_amount(user):
     return has_employee_flag(user, "deals_can_view_amount")
 
 
+class IsSuperuser(permissions.BasePermission):
+    def has_permission(self, request, view):
+        return bool(
+            request.user
+            and request.user.is_authenticated
+            and request.user.is_superuser
+        )
+
+
 class IsEmployee(permissions.BasePermission):
     def has_permission(self, request, view):
         return (
