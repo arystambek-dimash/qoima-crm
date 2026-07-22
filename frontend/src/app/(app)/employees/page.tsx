@@ -51,6 +51,10 @@ const PERMISSION_LABELS: Record<EmployeePermissionField, string> = {
   sales_can_create: "Отдел продаж · создание",
   sales_can_update: "Отдел продаж · изменение",
   sales_can_delete: "Отдел продаж · удаление",
+  clients_can_retrieve: "Клиенты · просмотр",
+  clients_can_create: "Клиенты · создание",
+  clients_can_update: "Клиенты · изменение",
+  clients_can_delete: "Клиенты · деактивация",
 };
 
 export default function EmployeesPage() {

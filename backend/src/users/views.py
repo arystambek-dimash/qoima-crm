@@ -8,7 +8,7 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from core.enums import UserRole
-from core.permissions import ClientAdminPermission
+from core.permissions import ClientsPermissions
 from core.views import BasePermissionMixin, BaseSerializerMixin
 from src.telegram_bot.services.telegram import TelegramClient
 from src.users.password_reset import (
@@ -99,8 +99,10 @@ class UserViewSet(
             email=serializer.validated_data["email"]
         ).first()
 
-        if db_user is None or not db_user.check_password(
-            serializer.validated_data["password"]
+        if (
+            db_user is None
+            or not db_user.is_active
+            or not db_user.check_password(serializer.validated_data["password"])
         ):
             raise ValidationError({"detail": "Invalid email or password."})
 
@@ -184,7 +186,7 @@ class ClientViewSet(
     viewsets.GenericViewSet,
 ):
     serializer_class = ClientSerializer
-    permission_classes = [ClientAdminPermission]
+    permission_classes = [ClientsPermissions]
 
     serializers = {
         "create": ClientCreateSerializer,
@@ -209,3 +211,18 @@ class ClientViewSet(
         client.set_password(serializer.validated_data["password"])
         client.save(update_fields=["password"])
         return Response({"detail": "Пароль обновлён."}, status=status.HTTP_200_OK)
+
+    def destroy(self, request, *args, **kwargs):
+        """Soft delete: deactivated clients cannot log in, but their deals
+        and tasks stay intact."""
+        client = self.get_object()
+        client.is_active = False
+        client.save(update_fields=["is_active"])
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=["post"], url_path="activate")
+    def activate(self, request, pk=None):
+        client = self.get_object()
+        client.is_active = True
+        client.save(update_fields=["is_active"])
+        return Response(self.get_serializer(client).data, status=status.HTTP_200_OK)

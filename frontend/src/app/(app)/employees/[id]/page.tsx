@@ -65,6 +65,15 @@ const PERMISSION_GROUPS: {
     ],
   },
   {
+    title: "Клиенты",
+    fields: [
+      { f: "clients_can_retrieve", label: "Видеть клиентов" },
+      { f: "clients_can_create", label: "Добавлять клиентов" },
+      { f: "clients_can_update", label: "Изменять клиентов и их пароли" },
+      { f: "clients_can_delete", label: "Деактивировать клиентов" },
+    ],
+  },
+  {
     title: "Бухгалтерия",
     fields: [
       { f: "accounting_can_retrieve", label: "Видеть доходы и расходы" },

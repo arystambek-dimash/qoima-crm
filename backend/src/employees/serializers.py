@@ -27,6 +27,10 @@ EMPLOYEE_PERMISSION_FIELDS = (
     "sales_can_create",
     "sales_can_update",
     "sales_can_delete",
+    "clients_can_retrieve",
+    "clients_can_create",
+    "clients_can_update",
+    "clients_can_delete",
 )
 
 

@@ -69,7 +69,15 @@ class ClientSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = get_user_model()
-        fields = ("id", "username", "email", "first_name", "last_name", "projects")
+        fields = (
+            "id",
+            "username",
+            "email",
+            "first_name",
+            "last_name",
+            "is_active",
+            "projects",
+        )
         read_only_fields = fields
 
     def get_projects(self, user):

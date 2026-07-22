@@ -64,7 +64,7 @@ export const NAV: { label: string; items: NavItem[] }[] = [
         label: "Клиенты",
         icon: Contact,
         roles: ["employee"],
-        requires: "employees_can_create",
+        requires: "clients_can_retrieve",
       },
       {
         href: "/incomes",

@@ -114,6 +114,9 @@ export const clients = {
     api
       .post<{ detail: string }>(`/clients/${id}/set-password/`, { password })
       .then((r) => r.data),
+  deactivate: (id: number) => api.delete(`/clients/${id}/`).then(() => undefined),
+  activate: (id: number) =>
+    api.post<Client>(`/clients/${id}/activate/`).then((r) => r.data),
 };
 
 /* ---------------- Employees ---------------- */

@@ -135,9 +135,24 @@ class ClientApiTests(TestCase):
             role="Администратор",
             salary="100000.00",
             employees_can_create=True,
+            clients_can_retrieve=True,
+            clients_can_create=True,
+            clients_can_update=True,
+            clients_can_delete=True,
+        )
+        self.viewer_employee = get_user_model().objects.create_user(
+            username="viewer-employee",
+            email="viewer-employee@example.com",
+            password="password",
+        )
+        Employee.objects.create(
+            user=self.viewer_employee,
+            role="Менеджер",
+            salary="100000.00",
+            clients_can_retrieve=True,
         )
 
-    def test_only_admins_can_access_clients(self):
+    def test_only_permitted_users_can_access_clients(self):
         self.assertEqual(self.client.get("/api/clients/").status_code, 401)
 
         self.client.force_authenticate(self.employee)
@@ -148,6 +163,67 @@ class ClientApiTests(TestCase):
 
         self.client.force_authenticate(self.admin_employee)
         self.assertEqual(self.client.get("/api/clients/").status_code, 200)
+
+    def test_clients_permission_flags_are_action_scoped(self):
+        self.client.force_authenticate(self.viewer_employee)
+
+        self.assertEqual(self.client.get("/api/clients/").status_code, 200)
+
+        create_response = self.client.post(
+            "/api/clients/",
+            {"email": "viewer-made@example.com", "password": "secret-123"},
+            format="json",
+        )
+        self.assertEqual(create_response.status_code, 403)
+
+        update_response = self.client.patch(
+            f"/api/clients/{self.collaborator.id}/",
+            {"first_name": "Nope"},
+            format="json",
+        )
+        self.assertEqual(update_response.status_code, 403)
+
+        password_response = self.client.post(
+            f"/api/clients/{self.collaborator.id}/set-password/",
+            {"password": "new-secret-123"},
+            format="json",
+        )
+        self.assertEqual(password_response.status_code, 403)
+
+        delete_response = self.client.delete(
+            f"/api/clients/{self.collaborator.id}/"
+        )
+        self.assertEqual(delete_response.status_code, 403)
+
+    def test_deactivate_blocks_login_and_activate_restores_it(self):
+        self.client.force_authenticate(self.admin_employee)
+
+        response = self.client.delete(f"/api/clients/{self.collaborator.id}/")
+        self.assertEqual(response.status_code, 204)
+        self.collaborator.refresh_from_db()
+        self.assertFalse(self.collaborator.is_active)
+
+        login = APIClient().post(
+            "/api/users/login-via-email/",
+            {"email": self.collaborator.email, "password": "client-password"},
+            format="json",
+        )
+        self.assertEqual(login.status_code, 400)
+
+        response = self.client.post(
+            f"/api/clients/{self.collaborator.id}/activate/"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data["is_active"])
+        self.collaborator.refresh_from_db()
+        self.assertTrue(self.collaborator.is_active)
+
+        login = APIClient().post(
+            "/api/users/login-via-email/",
+            {"email": self.collaborator.email, "password": "client-password"},
+            format="json",
+        )
+        self.assertEqual(login.status_code, 200)
 
     def test_superuser_lists_only_collaborators(self):
         self.client.force_authenticate(self.superuser)

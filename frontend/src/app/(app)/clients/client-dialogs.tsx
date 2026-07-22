@@ -221,6 +221,79 @@ export function EditClientDialog({
   );
 }
 
+export function ToggleActiveDialog({
+  client,
+  open,
+  onOpenChange,
+}: {
+  client: Client;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const qc = useQueryClient();
+  const deactivating = client.is_active;
+
+  const toggle = useMutation({
+    mutationFn: () =>
+      deactivating
+        ? clients.deactivate(client.id)
+        : clients.activate(client.id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["clients"] });
+      toast.success(
+        deactivating
+          ? "Клиент деактивирован — вход в кабинет закрыт."
+          : "Клиент снова активен и может входить."
+      );
+      onOpenChange(false);
+    },
+    onError: (err) => toast.error(asApiError(err).message),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-[440px] p-0 overflow-hidden">
+        <div className="px-6 pt-6 pb-4 border-b border-hairline">
+          <DialogHeader
+            eyebrow="Клиенты"
+            title={
+              deactivating ? "Деактивировать клиента?" : "Активировать клиента?"
+            }
+            description={
+              deactivating
+                ? `${client.email} не сможет войти в кабинет. Проекты и задачи останутся на месте — доступ можно вернуть в любой момент.`
+                : `${client.email} снова сможет войти в кабинет со своим паролем.`
+            }
+          />
+        </div>
+        <div className="px-6 py-3 border-t border-hairline flex items-center justify-end gap-2 bg-surface/40">
+          <Button
+            type="button"
+            variant="ghost"
+            size="md"
+            onClick={() => onOpenChange(false)}
+          >
+            Отмена
+          </Button>
+          <Button
+            type="button"
+            variant={deactivating ? "danger" : "primary"}
+            size="md"
+            disabled={toggle.isPending}
+            onClick={() => toggle.mutate()}
+          >
+            {toggle.isPending
+              ? "Сохраняем…"
+              : deactivating
+              ? "Деактивировать"
+              : "Активировать"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function SetPasswordDialog({
   client,
   open,

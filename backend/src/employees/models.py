@@ -29,3 +29,7 @@ class Employee(models.Model):
     sales_can_create = models.BooleanField(default=False)
     sales_can_update = models.BooleanField(default=False)
     sales_can_delete = models.BooleanField(default=False)
+    clients_can_retrieve = models.BooleanField(default=False)
+    clients_can_create = models.BooleanField(default=False)
+    clients_can_update = models.BooleanField(default=False)
+    clients_can_delete = models.BooleanField(default=False)

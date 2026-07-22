@@ -12,17 +12,27 @@ import { PermissionDenied } from "@/components/permission-gate";
 import { clients } from "@/lib/endpoints";
 import { asApiError } from "@/lib/api";
 import { useHasPermission } from "@/lib/permissions";
-import { plural } from "@/lib/utils";
+import { cn, plural } from "@/lib/utils";
 import type { Client } from "@/lib/types";
-import { AlertTriangle, Contact, KeyRound, Pencil, Plus } from "lucide-react";
+import {
+  AlertTriangle,
+  Contact,
+  KeyRound,
+  Pencil,
+  Plus,
+  UserCheck,
+  UserX,
+} from "lucide-react";
 import {
   CreateClientDialog,
   EditClientDialog,
   SetPasswordDialog,
+  ToggleActiveDialog,
 } from "./client-dialogs";
 
 export default function ClientsPage() {
-  const access = useHasPermission("employees_can_create");
+  const access = useHasPermission("clients_can_retrieve");
+  const canCreate = useHasPermission("clients_can_create");
   const q = useQuery({
     queryKey: ["clients"],
     queryFn: clients.list,
@@ -34,29 +44,28 @@ export default function ClientsPage() {
       <>
         <Topbar eyebrow="Компания" title="Клиенты" />
         <PermissionDenied
-          title="Только для администратора"
-          detail="Управление аккаунтами клиентов доступно администраторам Qoima."
+          title="Нет доступа"
+          detail="Просмотр клиентов доступен сотрудникам с правом «Клиенты · просмотр»."
         />
       </>
     );
   }
 
-  return (
-    <>
-      <Topbar
-        eyebrow="Компания"
-        title="Клиенты"
-        actions={
-          <CreateClientDialog
-            trigger={
-              <Button variant="primary" size="sm">
-                <Plus className="h-3.5 w-3.5" />
-                Добавить клиента
-              </Button>
-            }
-          />
+  const createButton = (size: "sm" | "md") =>
+    canCreate.granted ? (
+      <CreateClientDialog
+        trigger={
+          <Button variant="primary" size={size}>
+            <Plus className="h-3.5 w-3.5" />
+            Добавить клиента
+          </Button>
         }
       />
+    ) : undefined;
+
+  return (
+    <>
+      <Topbar eyebrow="Компания" title="Клиенты" actions={createButton("sm")} />
       <main className="flex-1 px-4 sm:px-6 lg:px-10 py-6 sm:py-10 max-w-[1280px] mx-auto w-full">
         <header className="mb-8 anim-rise">
           <h1 className="font-display text-[28px] tracking-tight text-ink">
@@ -106,14 +115,7 @@ export default function ClientsPage() {
             <p className="text-[14px] text-ink-3 mt-1 mb-5">
               Создайте первый аккаунт и передайте его клиенту.
             </p>
-            <CreateClientDialog
-              trigger={
-                <Button variant="primary" size="md">
-                  <Plus className="h-3.5 w-3.5" />
-                  Добавить клиента
-                </Button>
-              }
-            />
+            {createButton("md")}
           </Panel>
         )}
 
@@ -131,7 +133,8 @@ export default function ClientsPage() {
                 <TR>
                   <TH>Клиент</TH>
                   <TH className="hidden md:table-cell">Проекты</TH>
-                  <TH className="w-24 text-right">Действия</TH>
+                  <TH>Статус</TH>
+                  <TH className="w-28 text-right">Действия</TH>
                 </TR>
               </THead>
               <tbody>
@@ -148,14 +151,17 @@ export default function ClientsPage() {
 }
 
 function ClientRow({ client }: { client: Client }) {
+  const canUpdate = useHasPermission("clients_can_update");
+  const canDeactivate = useHasPermission("clients_can_delete");
   const [editOpen, setEditOpen] = useState(false);
   const [passwordOpen, setPasswordOpen] = useState(false);
+  const [toggleOpen, setToggleOpen] = useState(false);
   const name =
     [client.first_name, client.last_name].filter(Boolean).join(" ") ||
     client.email;
 
   return (
-    <TR>
+    <TR className={cn(!client.is_active && "opacity-60")}>
       <TD>
         <div className="flex items-center gap-3">
           <Avatar name={name} size={32} />
@@ -178,24 +184,57 @@ function ClientRow({ client }: { client: Client }) {
           </div>
         )}
       </TD>
+      <TD>
+        {client.is_active ? (
+          <Badge tone="green">Активен</Badge>
+        ) : (
+          <Badge tone="red">Деактивирован</Badge>
+        )}
+      </TD>
       <TD className="text-right">
         <div className="inline-flex items-center gap-1">
-          <button
-            type="button"
-            title="Редактировать"
-            onClick={() => setEditOpen(true)}
-            className="inline-flex items-center justify-center h-7 w-7 rounded text-ink-4 hover:text-ink hover:bg-surface-2 transition-colors"
-          >
-            <Pencil className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            title="Сменить пароль"
-            onClick={() => setPasswordOpen(true)}
-            className="inline-flex items-center justify-center h-7 w-7 rounded text-ink-4 hover:text-ink hover:bg-surface-2 transition-colors"
-          >
-            <KeyRound className="h-3.5 w-3.5" />
-          </button>
+          {canUpdate.granted && (
+            <>
+              <button
+                type="button"
+                title="Редактировать"
+                onClick={() => setEditOpen(true)}
+                className="inline-flex items-center justify-center h-7 w-7 rounded text-ink-4 hover:text-ink hover:bg-surface-2 transition-colors"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                title="Сменить пароль"
+                onClick={() => setPasswordOpen(true)}
+                className="inline-flex items-center justify-center h-7 w-7 rounded text-ink-4 hover:text-ink hover:bg-surface-2 transition-colors"
+              >
+                <KeyRound className="h-3.5 w-3.5" />
+              </button>
+            </>
+          )}
+          {canDeactivate.granted && (
+            <button
+              type="button"
+              title={client.is_active ? "Деактивировать" : "Активировать"}
+              onClick={() => setToggleOpen(true)}
+              className={cn(
+                "inline-flex items-center justify-center h-7 w-7 rounded transition-colors",
+                client.is_active
+                  ? "text-ink-4 hover:text-danger hover:bg-tag-red-bg/40"
+                  : "text-ink-4 hover:text-ink hover:bg-surface-2"
+              )}
+            >
+              {client.is_active ? (
+                <UserX className="h-3.5 w-3.5" />
+              ) : (
+                <UserCheck className="h-3.5 w-3.5" />
+              )}
+            </button>
+          )}
+          {!canUpdate.granted && !canDeactivate.granted && (
+            <span className="text-[12px] text-ink-4">—</span>
+          )}
         </div>
       </TD>
       {editOpen && (
@@ -210,6 +249,13 @@ function ClientRow({ client }: { client: Client }) {
           client={client}
           open={passwordOpen}
           onOpenChange={setPasswordOpen}
+        />
+      )}
+      {toggleOpen && (
+        <ToggleActiveDialog
+          client={client}
+          open={toggleOpen}
+          onOpenChange={setToggleOpen}
         />
       )}
     </TR>

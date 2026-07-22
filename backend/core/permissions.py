@@ -40,14 +40,6 @@ def can_view_deal_amount(user):
     return has_employee_flag(user, "deals_can_view_amount")
 
 
-class ClientAdminPermission(permissions.BasePermission):
-    """Superusers/staff and admin-equivalent employees (employees_can_create)
-    may manage client accounts."""
-
-    def has_permission(self, request, view):
-        return has_employee_flag(request.user, "employees_can_create")
-
-
 class IsEmployee(permissions.BasePermission):
     def has_permission(self, request, view):
         return (
@@ -170,6 +162,19 @@ class AccountingPermissions(EmployeeFlagPermission):
         "exclude_current_month": "accounting_can_update",
         "clear_current_month_exclusion": "accounting_can_update",
         "charge_due": "accounting_can_update",
+    }
+
+
+class ClientsPermissions(EmployeeFlagPermission):
+    permission_map = {
+        "list": "clients_can_retrieve",
+        "retrieve": "clients_can_retrieve",
+        "create": "clients_can_create",
+        "update": "clients_can_update",
+        "partial_update": "clients_can_update",
+        "set_password": "clients_can_update",
+        "destroy": "clients_can_delete",
+        "activate": "clients_can_delete",
     }
 
 

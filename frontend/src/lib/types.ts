@@ -28,6 +28,7 @@ export interface Client {
   email: string;
   first_name: string;
   last_name: string;
+  is_active: boolean;
   projects: ClientProject[];
 }
 
@@ -69,6 +70,10 @@ export const EMPLOYEE_PERMISSION_FIELDS = [
   "sales_can_create",
   "sales_can_update",
   "sales_can_delete",
+  "clients_can_retrieve",
+  "clients_can_create",
+  "clients_can_update",
+  "clients_can_delete",
 ] as const;
 
 export type EmployeePermissionField = (typeof EMPLOYEE_PERMISSION_FIELDS)[number];
