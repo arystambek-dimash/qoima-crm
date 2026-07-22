@@ -40,13 +40,12 @@ def can_view_deal_amount(user):
     return has_employee_flag(user, "deals_can_view_amount")
 
 
-class IsSuperuser(permissions.BasePermission):
+class ClientAdminPermission(permissions.BasePermission):
+    """Superusers/staff and admin-equivalent employees (employees_can_create)
+    may manage client accounts."""
+
     def has_permission(self, request, view):
-        return bool(
-            request.user
-            and request.user.is_authenticated
-            and request.user.is_superuser
-        )
+        return has_employee_flag(request.user, "employees_can_create")
 
 
 class IsEmployee(permissions.BasePermission):

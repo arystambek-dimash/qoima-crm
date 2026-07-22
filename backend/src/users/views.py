@@ -8,7 +8,7 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from core.enums import UserRole
-from core.permissions import IsSuperuser
+from core.permissions import ClientAdminPermission
 from core.views import BasePermissionMixin, BaseSerializerMixin
 from src.telegram_bot.services.telegram import TelegramClient
 from src.users.password_reset import (
@@ -184,7 +184,7 @@ class ClientViewSet(
     viewsets.GenericViewSet,
 ):
     serializer_class = ClientSerializer
-    permission_classes = [IsSuperuser]
+    permission_classes = [ClientAdminPermission]
 
     serializers = {
         "create": ClientCreateSerializer,

@@ -6,6 +6,7 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from core.enums import UserRole
+from src.employees.models import Employee
 from src.users.models import PasswordResetCode
 from src.users.password_reset import create_password_reset_code
 
@@ -124,8 +125,19 @@ class ClientApiTests(TestCase):
             password="client-password",
             role=UserRole.COLLABORATOR,
         )
+        self.admin_employee = get_user_model().objects.create_user(
+            username="admin-employee",
+            email="admin-employee@example.com",
+            password="password",
+        )
+        Employee.objects.create(
+            user=self.admin_employee,
+            role="Администратор",
+            salary="100000.00",
+            employees_can_create=True,
+        )
 
-    def test_only_superuser_can_access_clients(self):
+    def test_only_admins_can_access_clients(self):
         self.assertEqual(self.client.get("/api/clients/").status_code, 401)
 
         self.client.force_authenticate(self.employee)
@@ -133,6 +145,9 @@ class ClientApiTests(TestCase):
 
         self.client.force_authenticate(self.collaborator)
         self.assertEqual(self.client.get("/api/clients/").status_code, 403)
+
+        self.client.force_authenticate(self.admin_employee)
+        self.assertEqual(self.client.get("/api/clients/").status_code, 200)
 
     def test_superuser_lists_only_collaborators(self):
         self.client.force_authenticate(self.superuser)

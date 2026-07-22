@@ -11,7 +11,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { PermissionDenied } from "@/components/permission-gate";
 import { clients } from "@/lib/endpoints";
 import { asApiError } from "@/lib/api";
-import { useIsSuperuser } from "@/lib/permissions";
+import { useHasPermission } from "@/lib/permissions";
 import { plural } from "@/lib/utils";
 import type { Client } from "@/lib/types";
 import { AlertTriangle, Contact, KeyRound, Pencil, Plus } from "lucide-react";
@@ -22,20 +22,20 @@ import {
 } from "./client-dialogs";
 
 export default function ClientsPage() {
-  const isSuper = useIsSuperuser();
+  const access = useHasPermission("employees_can_create");
   const q = useQuery({
     queryKey: ["clients"],
     queryFn: clients.list,
-    enabled: isSuper,
+    enabled: access.granted,
   });
 
-  if (!isSuper) {
+  if (!access.granted && !access.isLoading) {
     return (
       <>
         <Topbar eyebrow="Компания" title="Клиенты" />
         <PermissionDenied
           title="Только для администратора"
-          detail="Управление аккаунтами клиентов доступно только суперпользователю."
+          detail="Управление аккаунтами клиентов доступно администраторам Qoima."
         />
       </>
     );
